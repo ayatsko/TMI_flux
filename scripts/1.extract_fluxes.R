@@ -274,6 +274,8 @@ fluxes.CO2=fluxes.CO2[,-1]
 fluxes.CH4=fluxes.CH4[,-1]
 
 # MD9 gives problems so remove these entries and see if the whoel code runs or there is a bigger problem 
+# test <- data_merge[!(data_merge$sample == "MD9")]
+# after doing this there is actually just something wrong with reading past row 56 in data_merge 
 
 ## For each start time
 for (i in flux.times) {
@@ -315,6 +317,16 @@ for (i in flux.times) {
   fluxes.CO2$p.CO2[j]=summary(mod)$coefficients[2,4]
 }
 
+### TO DO troubleshoot above 
+
+
+
+
+
+
+
+
+# finalize fluxes and extract ---- 
 # merge metadata back in to flux files 
 # CO2
 meta_TMI <- meta_TMI %>%
@@ -327,9 +339,9 @@ CH4_fluxfinal <- merge(fluxes.CH4, meta_TMI, by="Time_start")
 
 ## Export fluxes as .csv file
 # CO2 (units are mmol/day)
-write.csv(CO2_fluxfinal,"/Users/abbeyyatsko/Downloads/CO2_fluxfinal.csv", row.names = FALSE)
+write.csv(CO2_fluxfinal,"/Users/abbeyyatsko/Downloads/CO2_fluxfinalTMI.csv", row.names = FALSE)
 
 # CH4 (units are umol/day)
-write.csv(CH4_fluxfinal,"/Users/abbeyyatsko/Downloads/CH4_fluxfinal.csv", row.names = FALSE)
-```
+write.csv(CH4_fluxfinal,"/Users/abbeyyatsko/Downloads/CH4_fluxfinalTMI.csv", row.names = FALSE)
+
 
