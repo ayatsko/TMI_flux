@@ -141,7 +141,7 @@ data_clean <- data_clean %>%
 # goal is to clip out samples and remove measurements for when the chamber was empty 
 
 # complete merge for respiration data and metadata
-data_merge <- sqldf("select data_clean.fDOY, data_clean.CO2_dry, data_clean.CH4_dry, meta_TMI.sample, meta_TMI.avg_respT, meta_TMI.flux_source, meta_TMI.position, meta_TMI.tag, meta_TMI.directon, meta_TMI.chamber_SA_cm2, meta_TMI.soil_moisture, meta_TMI.fDOY_start 
+data_merge <- sqldf("select data_clean.fDOY, data_clean.CO2_dry, data_clean.CH4_dry, meta_TMI.sample, meta_TMI.avg_respT, meta_TMI.flux_source, meta_TMI.position, meta_TMI.tag, meta_TMI.directon,meta_TMI.chamber, meta_TMI.chamber_SA_cm2, meta_TMI.soil_moisture, meta_TMI.fDOY_start 
 from data_clean LEFT JOIN meta_TMI ON (data_clean.fDOY BETWEEN meta_TMI.fDOY_start AND meta_TMI.fDOY_end)")
 
 # filter out rows that  have no value for 'sample' - this means that no mound was being recorded
@@ -150,25 +150,186 @@ data_merge <- data_merge[complete.cases(data_merge[,c("sample")]),]
 # check to make sure all of the samples are there 
 summary(unique(data_merge$sample))
 
-
-
-
-
-
-
 # now visually check clipped bits of data 
-# co2 (xlim=c(212.4705, 212.5215) corresponds to only the first day of flux measurement)
+# co2 (xlim=c(0.4247222, 0.4332870) corresponds to only MD1 first file)
 par(mfrow=c(2,1),mar=c(4,4,1,1))
-with(data,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(212.4705, 212.5215)))
-with(data_merge,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(212.4705, 212.5215)))
+with(data_clean,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(0.4247222, 0.4332870)))
+with(data_merge,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(0.4247222, 0.4332870)))
 
 # ch4 
 par(mfrow=c(2,1),mar=c(4,4,1,1))
-with(data,plot(fDOY,CH4_dry,ylim=c(1.95,2.4), xlim=c(212.4705, 212.5215)))
-with(data_merge,plot(fDOY,CH4_dry,ylim=c(1.95,2.4), xlim=c(212.4705, 212.5215)))
+with(data_clean,plot(fDOY,CH4_dry,ylim=c(1, 10), xlim=c(0.4247222, 0.4332870)))
+with(data_merge,plot(fDOY,CH4_dry,ylim=c(1,10), xlim=c(0.4247222, 0.4332870)))
+
+# other random check - MD 30
+# co2 (xlim=c(11323.42, 11323.44) corresponds to only MD1 first file)
+par(mfrow=c(2,1),mar=c(4,4,1,1))
+with(data_clean,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(11323.42, 11323.44)))
+with(data_merge,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(11323.42, 11323.44)))
+
+# ch4 
+par(mfrow=c(2,1),mar=c(4,4,1,1))
+with(data_clean,plot(fDOY,CH4_dry,ylim=c(1, 10), xlim=c(11323.42, 11323.44)))
+with(data_merge,plot(fDOY,CH4_dry,ylim=c(1,10), xlim=c(11323.42, 11323.44)))
+
+# MD9 - check because later code to do final fluxes  is breaking for this mound (f0017)
+# co2 (xlim=c(3287.4226852, 3287.4313079) corresponds to only MD1 first file)
+par(mfrow=c(2,1),mar=c(4,4,1,1))
+with(data_clean,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(3287.4226852, 3287.4313079)))
+with(data_merge,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(3287.4226852, 3287.4313079)))
+
+# ch4 
+par(mfrow=c(2,1),mar=c(4,4,1,1))
+with(data_clean,plot(fDOY,CH4_dry,ylim=c(1, 10), xlim=c(3287.4226852, 3287.4313079)))
+with(data_merge,plot(fDOY,CH4_dry,ylim=c(1,10), xlim=c(3287.4226852, 3287.4313079)))
+
+# TO DO - QC checking for all of the mounds ----
+# for each unique sample, determine the x bounds (min and max fDOY)
+# then plot co2 and ch4 with these limits 
+# visually check each mound to make sure correct portion is being clipped 
+
+# convert ppm to moles for CH4 and CO2 ----
+
+# use known volume of chamber (in m3) to convert ppm of gas to liters of gas
+# need to add chamber volume column
+
+# small
+  # h = 5.7 cm
+  # d = 7.8 cm
+sm <- pi*((7.8/2)^2)*5.7
+
+# medium
+  # h = 10.8 cm
+  # d = 10.3 cm
+med <- pi*((10.3/2)^2)*10.8
+
+# large
+  # h = 16.1 cm
+  # d = 15.3 cm
+lg <- pi*((15.3/2)^2)*16.1
+
+# mini
+  # v = 119 ml
+mini <- 119
+
+volume_cm3 <- c(sm, med, lg, mini)
+chamber <- c("sm", "med", "lg", "mini")
+
+chamber_vols <- data.frame(volume_cm3, chamber)
+# chamber volumes are in cm3 - convert to m3 for the next step 
+chamber_vols$volume_m3 <- chamber_vols$volume_cm3*0.000001
+
+data_merge <- merge(data_merge, chamber_vols, by = c("chamber")) 
+data_merge <- data_merge %>% relocate(chamber, .after = chamber_SA_cm2)
+
+# also convert SA chamber to be in m2 (currently in cm2)
+data_merge$chamber_SA_m2 <- data_merge$chamber_SA_cm2 * 0.0001
+data_merge <- data_merge %>% relocate(chamber_SA_m2, .after = chamber_SA_cm2)
+
+# CH4
+data_merge$CH4_dry_L=
+  # parts CH4 per million parts air * volume of air in chamber (m3) * 1000 L per m3
+  (data_merge$CH4_dry/1000000) * data_merge$volume_m3 * 1000 
+
+# CO2
+data_merge$CO2_dry_L=
+  # parts CO2 per million parts air * volume of air in chamber (m3) * 1000 L per m3
+  (data_merge$CO2_dry/1000000) * data_merge$volume_m3 * 1000 
+
+# Use ideal gas law to calculate umol of CH4 or mmol of CO2
+# CH4
+data_merge$CH4_dry_umol=
+  # (atm pressure * L CH4) / (R in L*atm/?K*mol * ?K temp) * 10^6 umol/mol
+  ((1*data_merge$CH4_dry_L)/(0.08206*(data_merge$avg_respT+273)))*10^6
+
+# CO2
+data_merge$CO2_dry_mmol=
+  # (atm pressure * L CO2) / (R in L*atm/?K*mol * ?K temp) * 10^3 mmol/mol
+  ((1*data_merge$CO2_dry_L)/(0.08206*(data_merge$avg_respT+273)))*10^3
+
+# calculate chamber fluxes ----
+
+## Identify start of fluxes
+Time_start <- meta_TMI[,c("fDOY_start","sample")]
+flux.times=unique(Time_start$fDOY_start)
+
+# Create new dataframes to hold final fluxes 
+fluxes.CH4=data.frame(matrix(NA,nrow=length(flux.times)))
+fluxes.CO2=data.frame(matrix(NA,nrow=length(flux.times)))
+
+## Add named columns
+# CH4
+fluxes.CH4$Time_start=flux.times
+fluxes.CH4$flux.CH4=0
+fluxes.CH4$R2.CH4=0
+fluxes.CH4$p.CH4=0
+# CO2
+fluxes.CO2$Time_start=flux.times
+fluxes.CO2$flux.CO2=0
+fluxes.CO2$R2.CO2=0
+fluxes.CO2$p.CO2=0
+
+## Remove initial empty column
+fluxes.CO2=fluxes.CO2[,-1]
+fluxes.CH4=fluxes.CH4[,-1]
+
+# MD9 gives problems so remove these entries and see if the whoel code runs or there is a bigger problem 
+
+## For each start time
+for (i in flux.times) {
+  ## CH4 ##
+  # Subset data for one chamber measurement
+  temp1=subset(data_merge,fDOY_start==i)
+  # Set corresponding row of output table
+  j=which(flux.times==i)
+  # Determine if start time has a CH4 flux
+  if (nrow(temp1)>0) {
+    # If so:  
+    # Calulate flux in umol/day using linear regression
+    mod=with(temp1,lm(CH4_dry_umol~fDOY))
+    # Save flux rate and R2 and p-value of slope in corresponding row of dataframe
+    # flux rate, converted from umol/day to umol/m2/day
+    fluxes.CH4$flux.CH4[j]=coef(mod)[2]/data_merge$chamber_SA_m2
+    # R2 of slope
+    fluxes.CH4$R2.CH4[j]=summary(mod)$r.squared
+    # p-value of slope
+    fluxes.CH4$p.CH4[j]=summary(mod)$coefficients[2,4]
+    # If not:
+    # Fill rows of table with NA    
+  } else {
+    fluxes.CH4$flux.CH4[j]=NA
+    fluxes.CH4$R2.CH4[j]=NA
+    fluxes.CH4$p.CH4[j]=NA
+  }
+  ## CO2 ##
+  # Subset data for one chamber measurement
+  temp2=subset(data_merge,fDOY_start==i)
+  # Calulate flux in mol/day using linear regression
+  mod=with(temp2,lm(CO2_dry_mmol~fDOY))
+  # Save flux rate and R2 and p-value of slope in corresponding row of dataframe
+  # flux rate, converted from mol/day to mol/m2/day
+  fluxes.CO2$flux.CO2[j]=coef(mod)[2]/data_merge$chamber_SA_m2
+  # R2 of slope
+  fluxes.CO2$R2.CO2[j]=summary(mod)$r.squared
+  # p-value of slope
+  fluxes.CO2$p.CO2[j]=summary(mod)$coefficients[2,4]
+}
+
+# merge metadata back in to flux files 
+# CO2
+meta_TMI <- meta_TMI %>%
+  rename(Time_start = fDOY_start)
+
+CO2_fluxfinal <- merge(fluxes.CO2, meta_TMI, by="Time_start")
+
+# CH4
+CH4_fluxfinal <- merge(fluxes.CH4, meta_TMI, by="Time_start")
+
+## Export fluxes as .csv file
+# CO2 (units are mmol/day)
+write.csv(CO2_fluxfinal,"/Users/abbeyyatsko/Downloads/CO2_fluxfinal.csv", row.names = FALSE)
+
+# CH4 (units are umol/day)
+write.csv(CH4_fluxfinal,"/Users/abbeyyatsko/Downloads/CH4_fluxfinal.csv", row.names = FALSE)
 ```
-
-
-
-
 
