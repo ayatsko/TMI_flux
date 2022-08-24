@@ -291,7 +291,7 @@ for (i in flux.times) {
     mod=with(temp1,lm(CH4_dry_umol~fDOY))
     # Save flux rate and R2 and p-value of slope in corresponding row of dataframe
     # flux rate, converted from umol/day to umol/m2/day
-    fluxes.CH4$flux.CH4[j]=coef(mod)[2]/data_merge$chamber_SA_m2
+    fluxes.CH4$flux.CH4[j]=coef(mod)[2]
     # R2 of slope
     fluxes.CH4$R2.CH4[j]=summary(mod)$r.squared
     # p-value of slope
@@ -310,7 +310,7 @@ for (i in flux.times) {
   mod=with(temp2,lm(CO2_dry_mmol~fDOY))
   # Save flux rate and R2 and p-value of slope in corresponding row of dataframe
   # flux rate, converted from mol/day to mol/m2/day
-  fluxes.CO2$flux.CO2[j]=coef(mod)[2]/data_merge$chamber_SA_m2
+  fluxes.CO2$flux.CO2[j]=coef(mod)[2]
   # R2 of slope
   fluxes.CO2$R2.CO2[j]=summary(mod)$r.squared
   # p-value of slope
