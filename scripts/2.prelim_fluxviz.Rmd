@@ -41,7 +41,7 @@ c <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(position), y = flux.CH4)) +
 
 # methane flux by factor(direction)
 ```{r by direction}
-d <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(directon), y = flux.CH4)) + 
+d <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(directon), y = flux.CH4, fill = flux_source)) + 
   geom_boxplot()+ 
   geom_jitter()+
   theme_light()

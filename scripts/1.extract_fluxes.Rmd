@@ -204,7 +204,6 @@ summary(unique(data_merge$sample))
 ## Visually check clipped bits of data 
 
 ```{r}
-
 # co2 (xlim=c(0.4247222, 0.4332870) corresponds to only MD1 first file)
 par(mfrow=c(2,1),mar=c(4,4,1,1))
 with(data_clean,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(0.4247222, 0.4332870)))
@@ -372,7 +371,7 @@ for (i in flux.times) {
 }
 ```
 
-## Finalize fluxes and extract
+## Finalize fluxes, merge back with metadata and extract
 ```{r}
 # merge metadata back in to flux files 
 # CO2
