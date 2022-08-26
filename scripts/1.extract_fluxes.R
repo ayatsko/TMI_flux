@@ -28,13 +28,24 @@ data_clean <- subset(dataTMI, X.CH4._ppm!="NA")
 meta_TMI <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/TMI_flux_metadata - Sheet1.csv")
 file <- unique(meta_TMI$file)
 file_years <- as.data.frame(file)
-file_years$year_alt <- 2002:2068
+# file_years$year_alt <- 1954:2020
+
+# create repeating months 1-12 to make fDOY numbers have a smaller range 
+file_years$month_alt <- rep(01:12, length.out=67)
+file_years$year_alt <- ""
+file_years$year_alt[1:12] <- 2002
+file_years$year_alt[13:24] <- 2003
+file_years$year_alt[25:36] <- 2004
+file_years$year_alt[37:48] <- 2005
+file_years$year_alt[49:60] <- 2006
+file_years$year_alt[61:67] <- 2007
 
 # merge in alternative year (year_alt)
 data_clean <- merge(data_clean, file_years, by = c("file")) 
 
-# move year_alt 
+# move month_alt year_alt 
 data_clean <- data_clean %>% relocate(year_alt, .before = X.CH4._ppm)
+data_clean <- data_clean %>% relocate(month_alt, .before = year_alt)
 
 # replace original year (always 2002) in date_time with the alternative year (needed for fDOY)
 
@@ -52,12 +63,22 @@ data_clean <- data_clean %>% relocate(year_alt, .before = X.CH4._ppm)
 data_clean$Time <- gsub("2002", "", data_clean$Time)
 
 # create altered time column by pasting in alternative year to Time column in the place of the old 2002
-data_clean$time_alt <- with(data_clean, paste(substr(Time, 1, 8),
+data_clean$time_altyr <- with(data_clean, paste(substr(Time, 1, 8),
                            year_alt,
                            substr(Time, 9, nchar(Time)),
                            sep = ""))
+
+# remove first two characters from time_altmo column strings (replacing month)
+data_clean$time_altmo <- substring(data_clean$time_altyr , 5)
+
+# paste in month_alt 
+data_clean$time_alt <- with(data_clean, paste(substr(time_altmo, 1, 0),
+                                   month_alt,
+                                   substr(time_altmo, 1, nchar(time_altmo)),
+                                   sep = ""))
+
 # move up time_alt to compare with original Time
-data_clean <- data_clean %>% relocate(time_alt, .before = year_alt)
+data_clean <- data_clean %>% relocate(time_alt, .before = month_alt)
 
 # pull out date and time data - use time_alt
 date_time <- strptime(data_clean[,3],format='%m/%d/%Y %H:%M:%S')
@@ -92,22 +113,29 @@ ch4 <- ggplot(data_clean, aes(date_time, X.CH4.d_ppm)) +
 
 # merge with metadata ----
 
-# merge in year_alt to metadata
+# merge in year_alt and month_alt to metadata
 meta_TMI <- merge(meta_TMI, file_years, by = c("file")) 
 
 # add in column for measurement_day_alt
-meta_TMI$measurement_day_alt <- "01/01/"
+meta_TMI$measurement_day_alt <- "/01/"
 
 # paste in year_alt to the end of measurement_day_alt
-meta_TMI$measurement_day_alt <- with(meta_TMI, paste(substr(measurement_day_alt, 1, 8),
+meta_TMI$measurement_day_altyr <- with(meta_TMI, paste(substr(measurement_day_alt, 1, 8),
                                               year_alt,
                                               substr(measurement_day_alt, 9, nchar(measurement_day_alt)),
                                               sep = ""))
+# paste in month_alt to beginning of  measurement_day_alt
+meta_TMI$measurement_day_alt <- with(meta_TMI, paste(substr(measurement_day_altyr, 1, 0),
+                                              month_alt,
+                                              substr(measurement_day_altyr, 1, nchar(measurement_day_altyr)),
+                                              sep = ""))
+
 # reposition measurement_day_alt in df 
 meta_TMI <- meta_TMI %>% relocate(measurement_day_alt, .before = measurement_day_actual)
 meta_TMI <- meta_TMI %>% relocate(year_alt, .before = measurement_day_actual)
+meta_TMI <- meta_TMI %>% relocate(month_alt, .before = year_alt)
 
-# format measuremetn_day_alt
+# format measurement_day_alt
 as.Date(meta_TMI$measurement_day_alt, '%m/%d/%Y')
 
 ## Pull out date and time data
@@ -125,7 +153,7 @@ fDOY_end <- as.numeric(julian(date_time_end,'2002-01-01'))  #Change for year
 meta_TMI <- cbind(fDOY_start,fDOY_end,meta_TMI)
 
 # calculate average respiration temperature - add column
-meta_TMI$avg_respT <- rowMeans(meta_TMI[ , c(12:15)], na.rm = TRUE)
+meta_TMI$avg_respT <- rowMeans(meta_TMI[ , c(13:16)], na.rm = TRUE)
 
 # change sample to factor level variables 
 meta_TMI$sample <- as.factor(meta_TMI$sample) 
@@ -163,25 +191,25 @@ with(data_merge,plot(fDOY,CH4_dry,ylim=c(1,10), xlim=c(0.4247222, 0.4332870)))
 
 # other random check - MD 30
 # co2 (xlim=c(11323.42, 11323.44) corresponds to only MD1 first file)
-par(mfrow=c(2,1),mar=c(4,4,1,1))
-with(data_clean,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(11323.42, 11323.44)))
-with(data_merge,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(11323.42, 11323.44)))
-
-# ch4 
-par(mfrow=c(2,1),mar=c(4,4,1,1))
-with(data_clean,plot(fDOY,CH4_dry,ylim=c(1, 10), xlim=c(11323.42, 11323.44)))
-with(data_merge,plot(fDOY,CH4_dry,ylim=c(1,10), xlim=c(11323.42, 11323.44)))
-
-# MD9 - check because later code to do final fluxes  is breaking for this mound (f0017)
-# co2 (xlim=c(3287.4226852, 3287.4313079) corresponds to only MD1 first file)
-par(mfrow=c(2,1),mar=c(4,4,1,1))
-with(data_clean,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(3287.4226852, 3287.4313079)))
-with(data_merge,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(3287.4226852, 3287.4313079)))
-
-# ch4 
-par(mfrow=c(2,1),mar=c(4,4,1,1))
-with(data_clean,plot(fDOY,CH4_dry,ylim=c(1, 10), xlim=c(3287.4226852, 3287.4313079)))
-with(data_merge,plot(fDOY,CH4_dry,ylim=c(1,10), xlim=c(3287.4226852, 3287.4313079)))
+# par(mfrow=c(2,1),mar=c(4,4,1,1))
+# with(data_clean,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(11323.42, 11323.44)))
+# with(data_merge,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(11323.42, 11323.44)))
+# 
+# # ch4 
+# par(mfrow=c(2,1),mar=c(4,4,1,1))
+# with(data_clean,plot(fDOY,CH4_dry,ylim=c(1, 10), xlim=c(11323.42, 11323.44)))
+# with(data_merge,plot(fDOY,CH4_dry,ylim=c(1,10), xlim=c(11323.42, 11323.44)))
+# 
+# # MD9 - check because later code to do final fluxes  is breaking for this mound (f0017)
+# # co2 (xlim=c(3287.4226852, 3287.4313079) corresponds to only MD1 first file)
+# par(mfrow=c(2,1),mar=c(4,4,1,1))
+# with(data_clean,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(3287.4226852, 3287.4313079)))
+# with(data_merge,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(3287.4226852, 3287.4313079)))
+# 
+# # ch4 
+# par(mfrow=c(2,1),mar=c(4,4,1,1))
+# with(data_clean,plot(fDOY,CH4_dry,ylim=c(1, 10), xlim=c(3287.4226852, 3287.4313079)))
+# with(data_merge,plot(fDOY,CH4_dry,ylim=c(1,10), xlim=c(3287.4226852, 3287.4313079)))
 
 # TO DO - QC checking for all of the mounds ----
 # for each unique sample, determine the x bounds (min and max fDOY)
@@ -216,6 +244,7 @@ volume_cm3 <- c(sm, med, lg, mini)
 chamber <- c("sm", "med", "lg", "mini")
 
 chamber_vols <- data.frame(volume_cm3, chamber)
+
 # chamber volumes are in cm3 - convert to m3 for the next step 
 chamber_vols$volume_m3 <- chamber_vols$volume_cm3*0.000001
 
@@ -273,10 +302,6 @@ fluxes.CO2$p.CO2=0
 fluxes.CO2=fluxes.CO2[,-1]
 fluxes.CH4=fluxes.CH4[,-1]
 
-# MD9 gives problems so remove these entries and see if the whoel code runs or there is a bigger problem 
-# test <- data_merge[!(data_merge$sample == "MD9")]
-# after doing this there is actually just something wrong with reading past row 56 in data_merge 
-
 ## For each start time
 for (i in flux.times) {
   ## CH4 ##
@@ -290,7 +315,7 @@ for (i in flux.times) {
     # Calulate flux in umol/day using linear regression
     mod=with(temp1,lm(CH4_dry_umol~fDOY))
     # Save flux rate and R2 and p-value of slope in corresponding row of dataframe
-    # flux rate, converted from umol/day to umol/m2/day
+    # flux rate
     fluxes.CH4$flux.CH4[j]=coef(mod)[2]
     # R2 of slope
     fluxes.CH4$R2.CH4[j]=summary(mod)$r.squared
@@ -309,22 +334,13 @@ for (i in flux.times) {
   # Calulate flux in mol/day using linear regression
   mod=with(temp2,lm(CO2_dry_mmol~fDOY))
   # Save flux rate and R2 and p-value of slope in corresponding row of dataframe
-  # flux rate, converted from mol/day to mol/m2/day
+  # flux rate
   fluxes.CO2$flux.CO2[j]=coef(mod)[2]
   # R2 of slope
   fluxes.CO2$R2.CO2[j]=summary(mod)$r.squared
   # p-value of slope
   fluxes.CO2$p.CO2[j]=summary(mod)$coefficients[2,4]
 }
-
-### TO DO troubleshoot above 
-
-
-
-
-
-
-
 
 # finalize fluxes and extract ---- 
 # merge metadata back in to flux files 
@@ -343,5 +359,6 @@ write.csv(CO2_fluxfinal,"/Users/abbeyyatsko/Downloads/CO2_fluxfinalTMI.csv", row
 
 # CH4 (units are umol/day)
 write.csv(CH4_fluxfinal,"/Users/abbeyyatsko/Downloads/CH4_fluxfinalTMI.csv", row.names = FALSE)
+
 
 
