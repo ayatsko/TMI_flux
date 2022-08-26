@@ -360,5 +360,43 @@ write.csv(CO2_fluxfinal,"/Users/abbeyyatsko/Downloads/CO2_fluxfinalTMI.csv", row
 # CH4 (units are umol/day)
 write.csv(CH4_fluxfinal,"/Users/abbeyyatsko/Downloads/CH4_fluxfinalTMI.csv", row.names = FALSE)
 
+# visualize chamber fluxes ----
 
+# methane flux by mound
+a <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(sample), y = flux.CH4)) + 
+  geom_boxplot()+ 
+  geom_jitter()+
+  theme_light()
+
+# methane flux by mound or soil measurement 
+b <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(flux_source), y = flux.CH4)) + 
+  geom_boxplot()+ 
+  geom_jitter()+
+  theme_light()
+
+# methane flux by factor(position)
+c <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(position), y = flux.CH4)) + 
+  geom_boxplot()+ 
+  geom_jitter()+
+  theme_light()
+
+# methane flux by factor(direction)
+d <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(directon), y = flux.CH4)) + 
+  geom_boxplot()+ 
+  geom_jitter()+
+  theme_light()
+
+# methane flux by factor(species)
+# note that species info is not complete yet 
+species <- read.csv("/Users/abbeyyatsko/Downloads/Abbey termites .xlsx - Sheet1.csv")
+sp <- species[c("X", "ID_cleaned")]
+
+# merge sp and CH4flux_final 
+sp <- sp %>%
+  rename(sample = X)
+CH4_fluxfinal <- merge(CH4_fluxfinal, sp, by = c("sample")) 
+
+e <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(ID_cleaned), y = flux.CH4, fill = flux_source)) + 
+  geom_boxplot()+ 
+  theme_light()
 
