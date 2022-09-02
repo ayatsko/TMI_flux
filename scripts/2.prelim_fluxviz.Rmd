@@ -61,3 +61,16 @@ e <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(ID_cleaned), y = flux.CH4, f
   geom_boxplot()+ 
   theme_light()
 ```
+
+# methane flux by methane:co2 
+```{r}
+# new column for methane:co2 
+CH4_fluxfinal$ch4_co2 <-  CH4_fluxfinal$flux.CH4/CO2_fluxfinal$flux.CO2
+  
+f <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(ID_cleaned), y = ch4_co2, fill = flux_source)) + 
+  geom_boxplot()+ 
+  geom_jitter()+
+  theme_light()+
+  scale_y_continuous(limits = c(-1, 50))
+```
+
