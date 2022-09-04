@@ -7,6 +7,9 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+library(ggpubr)
 ```
 
 ## read in data 
@@ -17,10 +20,26 @@ CH4_fluxfinal<- read.csv("/Users/abbeyyatsko/Downloads/CH4_fluxfinalTMI.csv")
 
 ## methane flux by mound
 ```{r flux}
-a <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(sample), y = flux.CH4)) + 
+# subset df to create just soils and just mounds
+soils <- CH4_fluxfinal[CH4_fluxfinal$flux_source == 's',]
+mounds <- CH4_fluxfinal[CH4_fluxfinal$flux_source == 'm',]
+
+# mounds all 
+a1 <- ggplot(data = mounds, aes(x = as.factor(sample), y = flux.CH4)) + 
   geom_boxplot()+ 
   geom_jitter()+
-  theme_light()
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  labs(title = "mound")
+
+# soils all 
+a2 <- ggplot(data = soils, aes(x = as.factor(sample), y = flux.CH4)) + 
+  geom_boxplot()+ 
+  geom_jitter()+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  labs(title = "soil")
+ggarrange(a1, a2, ncol=1)
 ```
 
 # methane flux by mound or soil measurement 
@@ -73,4 +92,15 @@ f <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(ID_cleaned), y = ch4_co2, fi
   theme_light()+
   scale_y_continuous(limits = c(-1, 50))
 ```
+
+# methane flux by species faceted with mound/soil and positioning
+```{r}
+g <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(ID_cleaned), y = flux.CH4, fill = flux_source)) + 
+  geom_boxplot()+ 
+  geom_point(aes(col=position), position = "jitter")+
+  theme_light()
+```
+
+
+
 
