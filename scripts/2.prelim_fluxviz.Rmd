@@ -18,31 +18,61 @@ CO2_fluxfinal <- read.csv("/Users/abbeyyatsko/Downloads/CO2_fluxfinalTMI.csv")
 CH4_fluxfinal<- read.csv("/Users/abbeyyatsko/Downloads/CH4_fluxfinalTMI.csv")
 ```
 
-## methane flux by mound
-```{r flux}
-# subset df to create just soils and just mounds
+## merge in species data to flux data 
+```{r}
+species <- read.csv("/Users/abbeyyatsko/Downloads/Abbey termites .xlsx - Sheet1.csv")
+species <- species[c("X", "ID_cleaned")]
+
+# merge sp and CH4flux_final, CO2_fluxfinal
+species <- species %>%
+  rename(sample = X)
+CH4_fluxfinal <- merge(CH4_fluxfinal, species, by = c("sample")) 
+CO2_fluxfinal <- merge(CO2_fluxfinal, species, by = c("sample")) 
+
+# new column for methane:co2 
+CH4_fluxfinal$ch4_co2 <-  CH4_fluxfinal$flux.CH4/CO2_fluxfinal$flux.CO2
+
+# subset df to create just soils and just mounds (for later on. just to have df prepped)
 soils <- CH4_fluxfinal[CH4_fluxfinal$flux_source == 's',]
 mounds <- CH4_fluxfinal[CH4_fluxfinal$flux_source == 'm',]
+```
 
-# mounds all 
-a1 <- ggplot(data = mounds, aes(x = as.factor(sample), y = flux.CH4)) + 
+## methane flux by individual mound
+```{r flux}
+# mounds all, colored by species
+a1 <- ggplot(data = mounds, aes(x = as.factor(sample), y = flux.CH4, fill = ID_cleaned)) + 
   geom_boxplot()+ 
   geom_jitter()+
   theme_classic()+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
   labs(title = "mound")
 
-# soils all 
-a2 <- ggplot(data = soils, aes(x = as.factor(sample), y = flux.CH4)) + 
+# soils all, colored by species
+a2 <- ggplot(data = soils, aes(x = as.factor(sample), y = flux.CH4, fill = ID_cleaned)) + 
   geom_boxplot()+ 
   geom_jitter()+
   theme_classic()+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
   labs(title = "soil")
 ggarrange(a1, a2, ncol=1)
+
+# same as above but with CH4:CO2
+a3 <- ggplot(data = mounds, aes(x = as.factor(sample), y = ch4_co2, fill = ID_cleaned)) + 
+  geom_boxplot()+ 
+  geom_jitter()+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  labs(title = "mound")
+a4 <- ggplot(data = soils, aes(x = as.factor(sample), y = ch4_co2, fill = ID_cleaned)) + 
+  geom_boxplot()+ 
+  geom_jitter()+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  labs(title = "soil")
+ggarrange(a3, a4, ncol=1)
 ```
 
-# methane flux by mound or soil measurement 
+## methane flux by mound or soil measurement 
 ```{r by soil/mound}
 b <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(flux_source), y = flux.CH4)) + 
   geom_boxplot()+ 
@@ -50,50 +80,51 @@ b <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(flux_source), y = flux.CH4))
   theme_light()
 ```
 
-# methane flux by factor(position)
+## methane flux by factor(position)
 ```{r by position}
-c <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(position), y = flux.CH4)) + 
+c1 <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(position), y = flux.CH4, fill = ID_cleaned)) + 
   geom_boxplot()+ 
-  geom_jitter()+
   theme_light()
+c2 <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(position), y = ch4_co2, fill = ID_cleaned)) + 
+  geom_boxplot()+ 
+  theme_light()
+
+ggarrange(c1, c2, ncol = 1)
 ```
 
-# methane flux by factor(direction)
+## methane flux for mounds only by factor(direction)
 ```{r by direction}
-d <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(directon), y = flux.CH4, fill = flux_source)) + 
+d1 <- ggplot(data = mounds, aes(x = as.factor(directon), y = flux.CH4, fill = flux_source)) + 
   geom_boxplot()+ 
   geom_jitter()+
   theme_light()
+d2 <- ggplot(data = mounds, aes(x = as.factor(directon), y = ch4_co2, fill = flux_source)) + 
+  geom_boxplot()+ 
+  geom_jitter()+
+  theme_light()
+
+ggarrange(d1, d2, ncol = 1)
 ```
 
-# methane flux by factor(species) - note that species info is not complete yet 
+## methane flux by factor(species)
 ```{r by species}
-species <- read.csv("/Users/abbeyyatsko/Downloads/Abbey termites .xlsx - Sheet1.csv")
-sp <- species[c("X", "ID_cleaned")]
-
-# merge sp and CH4flux_final 
-sp <- sp %>%
-  rename(sample = X)
-CH4_fluxfinal <- merge(CH4_fluxfinal, sp, by = c("sample")) 
-
 e <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(ID_cleaned), y = flux.CH4, fill = flux_source)) + 
   geom_boxplot()+ 
   theme_light()
 ```
 
-# methane flux by methane:co2 
+## methane flux by methane:co2 
 ```{r}
-# new column for methane:co2 
-CH4_fluxfinal$ch4_co2 <-  CH4_fluxfinal$flux.CH4/CO2_fluxfinal$flux.CO2
-  
-f <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(ID_cleaned), y = ch4_co2, fill = flux_source)) + 
+ f <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(ID_cleaned), y = ch4_co2, fill = flux_source)) + 
   geom_boxplot()+ 
   geom_jitter()+
   theme_light()+
   scale_y_continuous(limits = c(-1, 50))
+
+ggarrange(e, f, ncol = 1)
 ```
 
-# methane flux by species faceted with mound/soil and positioning
+## methane flux by species faceted with mound/soil and positioning
 ```{r}
 g <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(ID_cleaned), y = flux.CH4, fill = flux_source)) + 
   geom_boxplot()+ 
