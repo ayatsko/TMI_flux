@@ -172,5 +172,19 @@ g2 <- ggplot(data = soils, aes(x = as.factor(realtime), y = flux.CH4, fill = ID_
 ggarrange(g1, g2, ncol = 1)
 ```
 
+# average flux per species 
+```{r}
+# average fluxes 
+ami <- mounds[mounds$ID_cleaned == 'Ami',]
+avgflux_ami <- mean(ami$flux.CH4) # 3160 umol/m2*d
+nasute <- mounds[mounds$ID_cleaned == 'Nasuti',]
+avgflux_nasute <- mean(nasute$flux.CH4) # 4847 umol/m2*d
+copto <- mounds[mounds$ID_cleaned == 'Copto',]
+avgflux_copto <- mean(copto$flux.CH4) # 1752 umol/m2*d
 
-
+# convert  umol/m2*d to ug/m2*d
+avgflux_ami <- avgflux_ami*(1/1000000)*(16.04)*(1000000) # molecular mass conversion to g, then conversion back to ug for comparison 
+avgflux_nasute <- avgflux_nasute*(1/1000000)*(16.04)*(1000000) 
+avgflux_copto <- avgflux_copto*(1/1000000)*(16.04)*(1000000) 
+# final units for average fluxes are now in ug CH4/m2*d
+```
