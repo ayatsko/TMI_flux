@@ -231,6 +231,38 @@ h4 <- ggplot(data = moundsCO2, aes(x = avg_respT, y = flux.CO2, color = ID_clean
 ggarrange(h1, h2, h3, h4)
 ```
 
+# methane vs. co2 regression 
+```{r}
+# new df with sample, ch4 and co2 
+reg <- merge(CH4_fluxfinal, CO2_fluxfinal, by = c("Time_start")) 
+reg <- reg[, c("Time_start", "flux.CH4", "flux.CO2", "flux.CO2_umol", "flux_source.x", "ID_cleaned.x", "avg_respT.x" )]
+str(reg)
+reg_mounds <- reg[reg$flux_source.x == 'm',]
+reg_soils <- reg[reg$flux_source.x == 's',]
+
+i1 <- ggplot(data = reg, aes(x = flux.CH4, y = flux.CO2_umol, color = ID_cleaned.x)) + 
+  geom_point(alpha=0.5)+ 
+  xlab("CH4 flux umol/d/m2")+
+  ylab("CO2 flux umol/d/m2")+
+  geom_smooth()+
+  labs(title = "mound+soil")+
+  theme_light()
+i2 <- ggplot(data = reg_mounds, aes(x = flux.CH4, y = flux.CO2_umol, color = ID_cleaned.x)) + 
+  geom_point(alpha=0.5)+ 
+  xlab("CH4 flux umol/d/m2")+
+  ylab("CO2 flux umol/d/m2")+
+  geom_smooth()+
+  labs(title = "mound")+
+  theme_light()
+i3 <- ggplot(data = reg_soils, aes(x = flux.CH4, y = flux.CO2_umol, color = ID_cleaned.x)) + 
+  geom_point(alpha=0.5)+ 
+  xlab("CH4 flux umol/d/m2")+
+  ylab("CO2 flux umol/d/m2")+
+  geom_smooth()+
+  labs(title = "soil")+
+  theme_light()
+ggarrange(i1, i2, i3)
+```
 
 
 
