@@ -1,0 +1,133 @@
+---
+title: "3.choosefor_methanotrophs"
+author: "abbey yatsko"
+date: "28/09/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## The goal for this document is to sort out mound methane flux data and choose samples for sequencing 
+
+There are two main research questions at this time: 
+  1. How does the mound methanotroph community composition change across different termite species?
+  2. For termite mounds with high inter-mound variation in methane flux, what is variation in inter-mound methanotroph community c       composition?
+
+### set workspace, read data 
+```{r}
+library(ggplot2)
+library(dplyr)
+library(ggpubr)
+
+CH4_fluxfinal<- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinalTMI.csv")
+species <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/Abbey termites .xlsx - Sheet1.csv")
+species <- species[c("X", "ID_cleaned")]
+
+# merge sp and CH4flux_final, CO2_fluxfinal
+species <- species %>%
+  rename(sample = X)
+CH4_fluxfinal <- merge(CH4_fluxfinal, species, by = c("sample")) 
+
+# subset out soils to have a df containing only mound information 
+mounds <- CH4_fluxfinal[CH4_fluxfinal$flux_source == 'm',]
+```
+
+### To address question 1: 
+first, is mound flux different by species?
+```{r}
+# one way ANOVA
+aov.1 <- aov(flux.CH4 ~ ID_cleaned, data = mounds) # note experimental switch out of CH4 flux with CH4:CO2
+summary(aov.1)
+TukeyHSD(aov.1)
+
+# assumptions
+par(mfrow=c(2,2))
+plot(aov.1)
+par(mfrow=c(1,1))
+```
+
+within each mound sample, is mound flux different based on position? 
+```{r}
+mound1 <- mounds[mounds$sample == c('MD1'),]
+aov.2 <- aov(flux.CH4 ~ position, data = mound1) # note experimental switch out of CH4 flux with CH4:CO2
+summary(aov.2)
+
+# find a way to loop through each mound number and calculate anova table? 
+```
+
+contrast big and little methane emitters
+  * target top 5 and bottom 5 overall mound fluxes (pooled from all positions) for 3 species 
+  * 10 mounds * 3 species = 30 samples 
+```{r}
+avgflux <- aggregate(mounds$flux.CH4, list(mounds$sample), FUN=mean)
+y <- mounds[, c("sample",  "ID_cleaned")]
+
+avgflux <- left_join(avgflux, y, by = c("Group.1"="sample"))
+avgflux <- unique(avgflux)
+
+# average methane flux by species
+ggplot(data = avgflux, aes(x = as.factor(ID_cleaned), y = x)) + 
+  geom_boxplot()+ 
+  ylab("CH4 flux umol/d/m2")+
+  theme_light()
+
+# anova on mound averages between species
+aov.3 <- aov(x ~ ID_cleaned, data = avgflux)
+summary(aov.3)
+TukeyHSD(aov.3)
+
+# pick out top 5 highest methane fluxes by species
+top <- avgflux %>%                                     
+  arrange(desc(x)) %>% 
+  group_by(ID_cleaned) %>%
+  slice(1:5)
+top    
+
+# pick out bottom 5 lowest methane fluxes by species
+bottom <- avgflux %>%                                     
+  arrange(x) %>% 
+  group_by(ID_cleaned) %>%
+  slice(1:5)
+bottom   
+```
+
+### To address question 2: 
+explore intermound methane flux variation
+target highest within-mound variation in methane flux and sequence each positon individually 
+  * top 5 most variable mounds * 3 species * 4-5 positions =  60-75 samples
+```{r}
+# calculate min and max flux for each sample 
+data_min <- mounds %>%                                     
+  group_by(sample) %>%
+  summarise_at(vars(flux.CH4),
+               list(min = min))
+data_max <- mounds %>%                                     
+  group_by(sample) %>%
+  summarise_at(vars(flux.CH4),
+               list(max = max))
+
+minmax <- merge(data_max, data_min, by="sample")
+minmax$range <- minmax$max - minmax$min 
+
+# merge in species info 
+minmax <- left_join(minmax, y, by = "sample")
+minmax <- unique(minmax)
+
+# range in intermound methane production by sample 
+ggplot(data = minmax, aes(x = as.factor(ID_cleaned), y = range)) + 
+  geom_boxplot()+ 
+  ylab("CH4 flux umol/d/m2")+
+  theme_light()
+
+# choose 5 most variable mounds (greatest range)
+variable <- minmax %>%                                     
+  arrange(desc(range)) %>% 
+  group_by(ID_cleaned) %>%
+  slice(1:5)
+variable  
+```
+
+
+
