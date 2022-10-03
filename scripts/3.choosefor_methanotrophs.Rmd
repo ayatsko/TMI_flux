@@ -83,6 +83,8 @@ top <- avgflux %>%
   arrange(desc(x)) %>% 
   group_by(ID_cleaned) %>%
   slice(1:5)
+
+top$rank <- "top"
 top    
 
 # pick out bottom 5 lowest methane fluxes by species
@@ -90,7 +92,20 @@ bottom <- avgflux %>%
   arrange(x) %>% 
   group_by(ID_cleaned) %>%
   slice(1:5)
+
+bottom$rank <- "bottom"
 bottom   
+
+# remove entries without species info, clean up df
+q1 <- rbind(top, bottom)
+q1[q1==""] <- NA
+q1 <- na.omit(q1)
+q1 <- q1 %>%
+  rename(sample = Group.1, 
+         flux = x)
+
+# export .csv
+write.csv(q1, "/Users/abbeyyatsko/Downloads/q1.csv")
 ```
 
 ### To address question 2: 
@@ -127,6 +142,14 @@ variable <- minmax %>%
   group_by(ID_cleaned) %>%
   slice(1:5)
 variable  
+
+# remove entries without species info, clean up df
+variable[variable==""] <- NA
+variable <- na.omit(variable)
+q2 <- variable
+
+# export .csv
+write.csv(q2, "/Users/abbeyyatsko/Downloads/q2.csv")
 ```
 
 
