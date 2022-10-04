@@ -167,8 +167,6 @@ ggplot(q1, aes(x = reorder(as.factor(sample), -flux), y = flux, fill = rank)) +
   xlab("")+
   theme_classic()+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-
 ```
 
 graph out q2
