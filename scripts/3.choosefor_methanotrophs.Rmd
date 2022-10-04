@@ -105,7 +105,7 @@ q1 <- q1 %>%
          flux = x)
 
 # export .csv
-write.csv(q1, "/Users/abbeyyatsko/Downloads/q1.csv")
+# write.csv(q1, "/Users/abbeyyatsko/Downloads/q1.csv")
 ```
 
 ### To address question 2: 
@@ -149,8 +149,45 @@ variable <- na.omit(variable)
 q2 <- variable
 
 # export .csv
-write.csv(q2, "/Users/abbeyyatsko/Downloads/q2.csv")
+#write.csv(q2, "/Users/abbeyyatsko/Downloads/q2.csv")
 ```
 
 
+graph out q1 
+```{r}
+# bar graph grouped by species 
+# colored by top and bottom 
+ggplot(q1, aes(x = reorder(as.factor(sample), -flux), y = flux, fill = rank)) + 
+  geom_bar(stat='identity') +
+  facet_grid(~ as.factor(ID_cleaned), 
+             scales = "free_x",
+             space = "free_x",
+             switch = "x")+ 
+  ylab("CH4 flux umol/d/m2")+
+  xlab("")+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+```
+
+graph out q2
+```{r}
+# boxplot of individual mounds
+q2_samps <- as.vector(q2$sample)
+q2_samps <- mounds[ mounds$sample %in% q2_samps, ]
+unique(q2_samps$sample)
+
+ggplot(data = q2_samps, aes(x = as.factor(sample), y = flux.CH4, fill = ID_cleaned)) + 
+  geom_boxplot()+ 
+  geom_jitter()+
+  facet_grid(~ as.factor(ID_cleaned), 
+             scales = "free_x",
+             space = "free_x",
+             switch = "x")+ 
+  ylab("CH4 flux umol/d/m2")+
+  xlab("")+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
 
