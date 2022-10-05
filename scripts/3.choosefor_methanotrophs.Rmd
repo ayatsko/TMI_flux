@@ -21,17 +21,12 @@ library(ggplot2)
 library(dplyr)
 library(ggpubr)
 
-CH4_fluxfinal<- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinalTMI.csv")
-species <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/Abbey termites .xlsx - Sheet1.csv")
-species <- species[c("X", "ID_cleaned")]
+mounds <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/mounds.csv")
+mounds <- mounds[,-1]
 
-# merge sp and CH4flux_final, CO2_fluxfinal
-species <- species %>%
-  rename(sample = X)
-CH4_fluxfinal <- merge(CH4_fluxfinal, species, by = c("sample")) 
-
-# subset out soils to have a df containing only mound information 
-mounds <- CH4_fluxfinal[CH4_fluxfinal$flux_source == 'm',]
+# remove entries without species ID 
+mounds[mounds==""] <- NA
+mounds <- mounds[!is.na(mounds$ID_cleaned),]
 ```
 
 ### To address question 1: 
@@ -98,13 +93,11 @@ bottom
 
 # remove entries without species info, clean up df
 q1 <- rbind(top, bottom)
-q1[q1==""] <- NA
-q1 <- na.omit(q1)
 q1 <- q1 %>%
   rename(sample = Group.1, 
          flux = x)
 
-# export .csv
+# export .csv with q1 mounds 
 # write.csv(q1, "/Users/abbeyyatsko/Downloads/q1.csv")
 ```
 
@@ -143,15 +136,11 @@ variable <- minmax %>%
   slice(1:5)
 variable  
 
-# remove entries without species info, clean up df
-variable[variable==""] <- NA
-variable <- na.omit(variable)
 q2 <- variable
 
-# export .csv
-#write.csv(q2, "/Users/abbeyyatsko/Downloads/q2.csv")
+# export .csv with q2 mounds 
+# write.csv(q2, "/Users/abbeyyatsko/Downloads/q2.csv")
 ```
-
 
 graph out q1 
 ```{r}
@@ -187,5 +176,19 @@ ggplot(data = q2_samps, aes(x = as.factor(sample), y = flux.CH4, fill = ID_clean
   xlab("")+
   theme_classic()+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+full sample lists 
+```{r}
+# q1: pooling all samples of mound
+dim(q1)
+# 30 mounds/samples 
+
+# q2: sequencing all individual samples within select mounds
+dim(q2_samps)
+# 68 samples (from 15 mounds)
+
+# 30 + 68 = 98 samples total (for mounds)
+# how many soil samples? 
 ```
 
