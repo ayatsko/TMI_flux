@@ -54,7 +54,7 @@ summary(aov.2)
 
 contrast big and little methane emitters
   * target top 5 and bottom 5 overall mound fluxes (pooled from all positions) for 3 species 
-  * 10 mounds * 3 species = 30 samples 
+  * 10 mounds * 3 species * 5 positions = 30 samples 
 ```{r}
 avgflux <- aggregate(mounds$flux.CH4, list(mounds$sample), FUN=mean)
 y <- mounds[, c("sample",  "ID_cleaned")]
@@ -95,14 +95,62 @@ bottom
 q1 <- rbind(top, bottom)
 q1 <- q1 %>%
   rename(sample = Group.1, 
-         flux = x)
+         avg_flux = x)
 
+# now take these IDs and show boxplots to see distribution of fluxes (not just average) 
+# join df
+q1_all <- left_join(q1, mounds, by = "sample")
+
+# plot for all
+ggplot(data = q1_all, aes(x = sample, y = flux.CH4, color =  as.factor(rank), fill = ID_cleaned.x)) + 
+  geom_boxplot()+ 
+  geom_jitter()+
+  ylab("CH4 flux umol/d/m2")+
+  theme_light()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  facet_grid(~ as.factor(ID_cleaned.x), 
+             scales = "free_x",
+             space = "free_x",
+             switch = "x")+ 
+  scale_fill_brewer(palette="YlOrRd") 
+
+# plot for high values
+q1H <- q1_all[q1_all$rank == c('top'),]
+q1Hplot <- ggplot(data = q1H, aes(x = sample, y = flux.CH4, fill = ID_cleaned.x)) + 
+  geom_boxplot()+ 
+  geom_jitter()+
+  ylab("CH4 flux umol/d/m2")+
+  theme_light()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  facet_grid(~ as.factor(ID_cleaned.x), 
+             scales = "free_x",
+             space = "free_x",
+             switch = "x")+ 
+  scale_fill_brewer(palette="YlOrRd")+
+  ggtitle("mounds w highest average flux")
+
+# plot for low values 
+q1L <- q1_all[q1_all$rank == c('bottom'),]
+q1Lplot <- ggplot(data = q1L, aes(x = sample, y = flux.CH4, fill = ID_cleaned.x)) + 
+  geom_boxplot()+ 
+  geom_jitter()+
+  ylab("CH4 flux umol/d/m2")+
+  theme_light()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  facet_grid(~ as.factor(ID_cleaned.x), 
+             scales = "free_x",
+             space = "free_x",
+             switch = "x")+ 
+  scale_fill_brewer(palette="YlOrRd")+ 
+  ggtitle("mounds w lowest average flux")
+
+ggarrange(q1Hplot, q1Lplot, ncol = 1)
 # export .csv with q1 mounds 
 # write.csv(q1, "/Users/abbeyyatsko/Downloads/q1.csv")
 ```
 
 ### To address question 2: 
-explore intermound methane flux variation
+explore intramound methane flux variation
 target highest within-mound variation in methane flux and sequence each positon individually 
   * top 5 most variable mounds * 3 species * 4-5 positions =  60-75 samples
 ```{r}
@@ -130,14 +178,14 @@ ggplot(data = minmax, aes(x = as.factor(ID_cleaned), y = range)) +
   theme_light()
 
 # choose 5 most variable mounds (greatest range)
-variable <- minmax %>%                                     
+q2 <- minmax %>%                                     
   arrange(desc(range)) %>% 
   group_by(ID_cleaned) %>%
   slice(1:5)
-variable  
 
-q2 <- variable
-
+# see the overlap of samples in q1 and q2 
+matches <- inner_join(q1, q2, 
+                       c("sample" = "sample"))
 # export .csv with q2 mounds 
 # write.csv(q2, "/Users/abbeyyatsko/Downloads/q2.csv")
 ```
