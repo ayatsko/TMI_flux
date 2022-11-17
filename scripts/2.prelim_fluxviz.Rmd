@@ -247,37 +247,30 @@ avgflux_copto <- avgflux_copto*(1/1000000)*(16.04)*(1000000)
 
 # methane and co2 mound flux by temperature 
 ```{r}
-# methane 
-h1 <- ggplot(data = mounds, aes(x = avg_respT, y = flux.CH4, color = position)) + 
-  geom_point(alpha=0.5)+ 
-  facet_wrap(~campaign, scales = "free_x")+
+# scatter plot - methane 
+h1 <- ggplot(data = mounds_ID, aes(x = avg_respT, y = flux.CH4)) + 
+  geom_point()+ 
   ylab("CH4 flux umol/d/m2")+
-  geom_smooth()+
-  theme_light()
+  facet_wrap(~ID_cleaned, scales = "free_x")+
+  theme_linedraw()
 
-# co2
-# first subset co2 df for only mound measures
-moundsCO2 <- CO2_fluxfinal[CO2_fluxfinal$flux_source == 'm',]
+# scatter plot - methane 
+# average temperature by mound via campaigh
+mounds_ID$mound_campaign <- paste(mounds_ID$sample,mounds_ID$campaign)
+x <- aggregate(mounds_ID$avg_respT, list(mounds_ID$mound_campaign), FUN=mean)
+colnames(x)[1] = "mound_campaign"
+colnames(x)[2] = "mound_temp"
+mounds_ID <- merge(mounds_ID, x, by = c("mound_campaign")) 
+str(mounds_ID)
 
-h2 <- ggplot(data = moundsCO2, aes(x = avg_respT, y = flux.CO2, color = position)) + 
-  geom_point(alpha=0.5)+ 
-  ylab("CO2 flux mmol/d/m2")+
-  geom_smooth()+
-  theme_light()
-
-h3 <- ggplot(data = mounds, aes(x = avg_respT, y = flux.CH4, color = ID_cleaned)) + 
-  geom_point(alpha=0.5)+ 
+h2 <- ggplot(data = mounds_ID, aes(x = mound_temp, y = flux.CH4, fill = as.factor(sample))) + 
+  geom_boxplot()+ 
   ylab("CH4 flux umol/d/m2")+
-  geom_smooth()+
-  theme_light()
+  facet_grid(campaign~ID_cleaned, scales = "free_x")+
+  theme(legend.position="none")+
+  scale_fill_viridis(discrete = TRUE, option = "D")+
+  ylim(0,16000) # for outliers
 
-h4 <- ggplot(data = moundsCO2, aes(x = avg_respT, y = flux.CO2, color = ID_cleaned)) + 
-  geom_point(alpha=0.5)+ 
-  ylab("CO2 flux mmol/d/m2")+
-  geom_smooth()+
-  theme_light()
-
-ggarrange(h1, h2, h3, h4)
 ```
 
 # methane vs. co2 regression 
