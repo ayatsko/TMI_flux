@@ -302,11 +302,8 @@ ggplot(data = z, aes(x = working_sa_m2, y = SA_scaled_flux)) +
   geom_smooth(method = 'lm')+
   facet_wrap(~ID_cleaned, scales = "free_x")+
   theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-  ylim(0,18000)+ # removes outliers, makes it easier to see comparisons
-  ylab("CH4 flux umol/d/m2")
-
-
+  ylab("CH4 flux umol/d/m2 scaled to mound size") +
+  xlab("mound surface area")
 ```
 
 calculate average flux per species 
