@@ -27,6 +27,12 @@ mounds <- mounds[,-1]
 # remove entries without species ID 
 mounds[mounds==""] <- NA
 mounds <- mounds[!is.na(mounds$ID_cleaned),]
+
+# remove mounds that have fewer than 4 measurement positions per mound 
+measure_number <- data.frame(table(mounds$sample))
+measure_number <- subset(measure_number, Freq>3)
+measure_number <- as.vector(measure_number$Var1)
+mounds <- mounds[mounds$sample %in% measure_number,]
 ```
 
 ### To address question 1: 
@@ -73,20 +79,21 @@ aov.3 <- aov(x ~ ID_cleaned, data = avgflux)
 summary(aov.3)
 TukeyHSD(aov.3)
 
-# pick out top 5 highest methane fluxes by species
+# pick out top 4 highest methane fluxes by species 
+# (there is overlap between high and low of amitermes therefore shift from 5 to 4)
 top <- avgflux %>%                                     
   arrange(desc(x)) %>% 
   group_by(ID_cleaned) %>%
-  slice(1:5)
+  slice(1:4)
 
 top$rank <- "top"
 top    
 
-# pick out bottom 5 lowest methane fluxes by species
+# pick out bottom 4 lowest methane fluxes by species
 bottom <- avgflux %>%                                     
   arrange(x) %>% 
   group_by(ID_cleaned) %>%
-  slice(1:5)
+  slice(1:4)
 
 bottom$rank <- "bottom"
 bottom   
@@ -194,7 +201,7 @@ graph out q1
 ```{r}
 # bar graph grouped by species 
 # colored by top and bottom 
-ggplot(q1, aes(x = reorder(as.factor(sample), -flux), y = flux, fill = rank)) + 
+ggplot(q1, aes(x = reorder(as.factor(sample), -avg_flux), y = avg_flux, fill = rank)) + 
   geom_bar(stat='identity') +
   facet_grid(~ as.factor(ID_cleaned), 
              scales = "free_x",
@@ -228,15 +235,63 @@ ggplot(data = q2_samps, aes(x = as.factor(sample), y = flux.CH4, fill = ID_clean
 
 full sample lists 
 ```{r}
-# q1: pooling all samples of mound
-dim(q1)
-# 30 mounds/samples 
+# q1: choose 3 samples on each mound closest to average flux
+
+# create unique extract_ID that includes mound number, tag, and position of measurement
+q1_samps <- q1_all
+q1_samps$tag <- as.factor(q1_samps$tag)
+q1_samps$extract_ID <- paste(q1_samps$sample,"-",q1_samps$tag, "-", q1_samps$position, sep = "")
+q1_samps <- q1_samps %>% relocate(extract_ID, .after = sample)
+
+# choose 3 samples per mound that are closest to the average 
+# make column for difference from median in order to sort out easier 
+q1_samps$avg_dif <- abs(q1_samps$avg_flux - q1_samps$flux.CH4)
+q1_samps <- q1_samps %>% relocate(avg_dif, .after = avg_flux)
+
+# choose the largest average difference grouped by sample 
+q1_samps %>% group_by(sample) %>% top_n(1, avg_dif) -> a
+a <- as.vector(a$extract_ID)
+q1_samps <- q1_samps[!q1_samps$extract_ID %in% a,]
+
+# subset out by species 
+q1_samps_ami <- subset(q1_samps, ID_cleaned.x == "Ami")
+q1_samps_copto <- subset(q1_samps, ID_cleaned.x == "Copto")
+q1_samps_nasuti <- subset(q1_samps, ID_cleaned.x == "Nasuti")
+
+# get rid of highest again for copto and nasuti (they have 5 measurements per mound usually, need to rid of an additional)
+q1_samps_copto %>% group_by(sample) %>% top_n(1, avg_dif) -> copto_rm
+copto_rm <- as.vector(copto_rm$extract_ID)
+q1_samps_copto <- q1_samps_copto[!q1_samps_copto$extract_ID %in% copto_rm,]
+
+q1_samps_nasuti %>% group_by(sample) %>% top_n(1, avg_dif) -> nasuti_rm
+nasuti_rm <- as.vector(nasuti_rm$extract_ID)
+q1_samps_nasuti <- q1_samps_nasuti[!q1_samps_nasuti$extract_ID %in% nasuti_rm,]
+
+# bring species back together 
+q1_samps <- rbind(q1_samps_ami, q1_samps_copto, q1_samps_nasuti)
+
+# export as .csv 
+# write.csv(q1_samps, "/Users/abbeyyatsko/Downloads/q1_samps.csv", row.names = FALSE)
+
+# q1 minus overlaps: remove samples that are already being accounted for in q2 
+# every position for mounds in q2 are being extracted
+matches <- as.vector(matches$sample)
+q1_samps_no_overlap <- q1_samps[!q1_samps$sample %in% matches,]
+# write.csv(q1_samps_no_overlap, "/Users/abbeyyatsko/Downloads/q1_samps_no_overlap.csv", row.names = FALSE)
 
 # q2: sequencing all individual samples within select mounds
 dim(q2_samps)
 # 68 samples (from 15 mounds)
 
-# 30 + 68 = 98 samples total (for mounds)
-# how many soil samples? 
+# create unique extract_ID that includes mound number, tag, and position of measurement
+q2_samps$tag <- as.factor(q2_samps$tag)
+q2_samps$extract_ID <- paste(q2_samps$sample,"-",q2_samps$tag, "-", q2_samps$position, sep = "")
+q2_samps <- q2_samps %>% relocate(extract_ID, .after = sample)
+
+# export as .csv and check what overlap exists between q2 and q1
+# write.csv(q2_samps, "/Users/abbeyyatsko/Downloads/q2_samps.csv", row.names = FALSE)
+
+# total extractions: 
+
 ```
 
