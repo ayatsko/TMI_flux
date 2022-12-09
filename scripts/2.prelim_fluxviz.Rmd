@@ -11,6 +11,7 @@ library(ggplot2)
 library(dplyr)
 library(ggpubr)
 library(viridis)
+library(tidyr)
 ```
 
 read in data 
@@ -60,6 +61,9 @@ mounds <- mounds[mounds$arboreal == 0,]
 # remove unidentified mounds 
 mounds[mounds==""] <- NA
 mounds_ID <- mounds[!is.na(mounds$ID_cleaned),]
+
+# remove duplicate ID columns 
+mounds_ID <- subset( mounds_ID, select = -c(ID_cleaned.x, ID_cleaned.y) )
 
 # write.csv(mounds, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/mounds.csv")
 ```
@@ -258,7 +262,7 @@ h1 <- ggplot(data = mounds_ID, aes(x = avg_respT, y = flux.CH4, color = campaign
   theme_linedraw()
 
 # average temperature by mound via campaign
-mounds_ID$mound_campaign <- paste(mounds_ID$sample,mounds_ID$campaign)
+mounds_ID$mound_campaign <- paste(mounds_ID$sample,mounds_ID$campaign, sep = "-")
 x <- aggregate(mounds_ID$avg_respT, list(mounds_ID$mound_campaign), FUN=mean)
 colnames(x)[1] = "mound_campaign"
 colnames(x)[2] = "mound_temp"
@@ -276,8 +280,32 @@ h2 <- ggplot(data = mounds_ID, aes(x = mound_temp, y = flux.CH4, fill = as.facto
 
 ```
 
-size of mounds and flux data 
+scaled mound flux from calculated SA (come back to this)
 ```{r}
+# find average flux by mound, calculating seperately remeasured mounds  
+# group by mound_campaign
+y <- mounds_ID %>% group_by(mound_campaign) %>% 
+  summarise(mean_flux=mean(flux.CH4))
+y <- separate(y, col=mound_campaign, into=c('sample', 'campaign'), sep='-')
+
+# merge with mound_SA
+mound_SA <- read.csv("/Users/abbeyyatsko/Downloads/mound SA - Sheet1 (1).csv")
+mound_SA <- mound_SA[, c('sample', 'working_sa_m2')]
+mound_SA <- mound_SA[!is.na(mound_SA$working_sa_m2),]
+z <- merge(y, mound_SA, by = "sample" )
+z$SA_scaled_flux <- z$mean_flux * z$working_sa_m2
+z <- merge(z, species, by = "sample" )
+
+# graph mound flux by mound size
+ggplot(data = z, aes(x = working_sa_m2, y = SA_scaled_flux)) + 
+  geom_point()+ 
+  geom_smooth(method = 'lm')+
+  facet_wrap(~ID_cleaned, scales = "free_x")+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  ylim(0,18000)+ # removes outliers, makes it easier to see comparisons
+  ylab("CH4 flux umol/d/m2")
+
 
 ```
 
