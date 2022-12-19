@@ -367,25 +367,45 @@ scaled mound flux from calculated SA
 ```{r}
 # find average flux by mound, calculating seperately remeasured mounds  
 # group by mound_campaign
-y <- mounds_ID %>% group_by(mound_campaign) %>% 
-  summarise(mean_flux=mean(flux.CH4))
-y <- separate(y, col=mound_campaign, into=c('sample', 'campaign'), sep='-')
+y1 <- mounds_ID %>% group_by(mound_campaign) %>% 
+  summarise(mean_fluxCH4=mean(flux.CH4),mean_fluxCO2=mean(flux.CO2_umol), mean_fluxCH4CO2=mean(ch4_co2) )
+y1 <- separate(y1, col=mound_campaign, into=c('sample', 'campaign'), sep='-')
 
 # merge with mound_SA
 mound_SA <- read.csv("/Users/abbeyyatsko/Downloads/mound SA - Sheet1 (1).csv")
 mound_SA <- mound_SA[, c('sample', 'working_sa_m2')]
 mound_SA <- mound_SA[!is.na(mound_SA$working_sa_m2),]
-z <- merge(y, mound_SA, by = "sample" )
-z$SA_scaled_flux <- z$mean_flux * z$working_sa_m2
+z <- merge(y1, mound_SA, by = "sample" )
+z$totalCH4flux <- z$mean_fluxCH4 * z$working_sa_m2
+z$totalCO2flux <- z$mean_fluxCO2 * z$working_sa_m2
 z <- merge(z, species, by = "sample" )
 
-# graph mound flux by mound size
-ggplot(data = z, aes(x = working_sa_m2, y = SA_scaled_flux)) + 
+# graph mound flux by mound size (use scaled flux - this is the actual flux being represented by the true size of the mound)
+# methane
+ggplot(data = z, aes(x = working_sa_m2, y = totalCH4flux, color = campaign)) + 
   geom_point()+ 
   geom_smooth(method = 'lm')+
   facet_wrap(~ID_cleaned, scales = "free_x")+
   theme_classic()+
-  ylab("CH4 flux umol/d/m2 scaled to mound size") +
+  ylab("Total mound CH4 flux umol/d/m2") +
+  xlab("mound surface area")
+
+# carbon dioxide
+ggplot(data = z, aes(x = working_sa_m2, y = totalCO2flux, color = campaign)) + 
+  geom_point()+ 
+  geom_smooth(method = 'lm')+
+  facet_wrap(~ID_cleaned, scales = "free_x")+
+  theme_classic()+
+  ylab("Total mound CO2 flux umol/d/m2") +
+  xlab("mound surface area")
+
+# methane:carbon dioxide
+ggplot(data = z, aes(x = working_sa_m2, y = mean_fluxCH4CO2, color = campaign)) + 
+  geom_point()+ 
+  geom_smooth(method = 'lm')+
+  facet_wrap(~ID_cleaned, scales = "free_x")+
+  theme_classic()+
+  ylab("Total mound CH4:CO2") +
   xlab("mound surface area")
 ```
 
