@@ -58,9 +58,10 @@ summary(aov.2)
 # find a way to loop through each mound number and calculate anova table? 
 ```
 
-contrast big and little methane emitters
-  * target top 5 and bottom 5 overall mound fluxes (pooled from all positions) for 3 species 
-  * 10 mounds * 3 species * 5 positions = 30 samples 
+###  To address question 1
+Contrast big and little methane emitters
+  * target top 4 and bottom 4 overall mound fluxes (pooled from all positions) for 3 species 
+  * 8 mounds * 3 species * 4-5 positions 
 ```{r}
 avgflux <- aggregate(mounds$flux.CH4, list(mounds$sample), FUN=mean)
 y <- mounds[, c("sample",  "ID_cleaned")]
@@ -121,6 +122,18 @@ ggplot(data = q1_all, aes(x = sample, y = flux.CH4, color =  as.factor(rank), fi
              switch = "x")+ 
   scale_fill_brewer(palette="YlOrRd") 
 
+# bar graph grouped by species - colored by top and bottom 
+ggplot(q1, aes(x = reorder(as.factor(sample), -avg_flux), y = avg_flux, fill = rank)) + 
+  geom_bar(stat='identity') +
+  facet_grid(~ as.factor(ID_cleaned), 
+             scales = "free_x",
+             space = "free_x",
+             switch = "x")+ 
+  ylab("CH4 flux umol/d/m2")+
+  xlab("")+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
 # plot for high values
 q1H <- q1_all[q1_all$rank == c('top'),]
 q1Hplot <- ggplot(data = q1H, aes(x = sample, y = flux.CH4, fill = ID_cleaned.x)) + 
@@ -128,7 +141,7 @@ q1Hplot <- ggplot(data = q1H, aes(x = sample, y = flux.CH4, fill = ID_cleaned.x)
   geom_jitter()+
   ylab("CH4 flux umol/d/m2")+
   theme_light()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position = "none")+
   facet_grid(~ as.factor(ID_cleaned.x), 
              scales = "free_x",
              space = "free_x",
@@ -143,7 +156,7 @@ q1Lplot <- ggplot(data = q1L, aes(x = sample, y = flux.CH4, fill = ID_cleaned.x)
   geom_jitter()+
   ylab("CH4 flux umol/d/m2")+
   theme_light()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position = "none")+
   facet_grid(~ as.factor(ID_cleaned.x), 
              scales = "free_x",
              space = "free_x",
@@ -151,7 +164,9 @@ q1Lplot <- ggplot(data = q1L, aes(x = sample, y = flux.CH4, fill = ID_cleaned.x)
   scale_fill_brewer(palette="YlOrRd")+ 
   ggtitle("mounds w lowest average flux")
 
+# overall sampling for Q1
 ggarrange(q1Hplot, q1Lplot, ncol = 1)
+
 # export .csv with q1 mounds 
 # write.csv(q1, "/Users/abbeyyatsko/Downloads/q1.csv")
 ```
@@ -190,31 +205,6 @@ q2 <- minmax %>%
   group_by(ID_cleaned) %>%
   slice(1:5)
 
-# see the overlap of samples in q1 and q2 
-matches <- inner_join(q1, q2, 
-                       c("sample" = "sample"))
-# export .csv with q2 mounds 
-# write.csv(q2, "/Users/abbeyyatsko/Downloads/q2.csv")
-```
-
-graph out q1 
-```{r}
-# bar graph grouped by species 
-# colored by top and bottom 
-ggplot(q1, aes(x = reorder(as.factor(sample), -avg_flux), y = avg_flux, fill = rank)) + 
-  geom_bar(stat='identity') +
-  facet_grid(~ as.factor(ID_cleaned), 
-             scales = "free_x",
-             space = "free_x",
-             switch = "x")+ 
-  ylab("CH4 flux umol/d/m2")+
-  xlab("")+
-  theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-```
-
-graph out q2
-```{r}
 # boxplot of individual mounds
 q2_samps <- as.vector(q2$sample)
 q2_samps <- mounds[ mounds$sample %in% q2_samps, ]
@@ -230,13 +220,18 @@ ggplot(data = q2_samps, aes(x = as.factor(sample), y = flux.CH4, fill = ID_clean
   ylab("CH4 flux umol/d/m2")+
   xlab("")+
   theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position = "none")
+
+# see the overlap of samples in q1 and q2 
+matches <- inner_join(q1, q2, 
+                       c("sample" = "sample"))
+# export .csv with q2 mounds 
+# write.csv(q2, "/Users/abbeyyatsko/Downloads/q2.csv")
 ```
 
 full sample lists 
 ```{r}
 # q1: choose 3 samples on each mound closest to average flux
-
 # create unique extract_ID that includes mound number, tag, and position of measurement
 q1_samps <- q1_all
 q1_samps$tag <- as.factor(q1_samps$tag)
@@ -291,7 +286,7 @@ q2_samps <- q2_samps %>% relocate(extract_ID, .after = sample)
 # export as .csv and check what overlap exists between q2 and q1
 # write.csv(q2_samps, "/Users/abbeyyatsko/Downloads/q2_samps.csv", row.names = FALSE)
 
-# total extractions: 
+# total extractions: 115
 
 ```
 
