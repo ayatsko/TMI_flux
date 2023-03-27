@@ -199,10 +199,11 @@ ggplot(data = mound_average[!mound_average$ID_cleaned =="Macro",], aes(x = as.fa
   geom_boxplot()+ 
   stat_compare_means(method = "anova")+
   scale_fill_brewer("Blues")+
-  ylab("CH4 flux umol/d/m2")+
-  xlab("Species")+
-  guides(fill=guide_legend(title=""))+
-  theme_classic()
+  ylab("CH4 flux (umol/d/m2)")+
+  xlab("")+
+  scale_x_discrete(labels= c("A. laurensis", "C. acinaciformis", "N.magnus"))+
+  theme_classic()+
+  theme(legend.position="none")
 
 aov.mound_average <- aov(mean_fluxCH4 ~ ID_cleaned, data = mound_average[!mound_average$ID_cleaned =="Macro",])
 summary(aov.mound_average)
@@ -213,16 +214,23 @@ TukeyHSD(aov.mound_average, conf.level=.95)
 nov <- mound_average[mound_average$campaign == "nov22",]
 target_mounds <- unique(nov$sample)
 season_contrast <- mound_average[mound_average$sample %in% target_mounds,]
+season_contrast$species <- ifelse(season_contrast$ID_cleaned == "Ami", "A. laurensis", "")
+season_contrast$species <- ifelse(season_contrast$ID_cleaned == "Nasuti", "N. magnus",season_contrast$species )
+season_contrast$species <- ifelse(season_contrast$ID_cleaned == "Copto", "C. acinaciformis", season_contrast$species)
 
-ggplot(season_contrast, aes(x = as.factor(ID_cleaned), y = mean_fluxCH4, fill = campaign)) + 
+ggplot(season_contrast, aes(x = as.factor(species), y = mean_fluxCH4, fill = campaign)) + 
   geom_boxplot()+ 
-  scale_fill_brewer("Blues")+
+  scale_fill_brewer("Blues", labels=c('Wet-to-dry', 'Dry-to-wet'))+
   ylab("CH4 flux umol/d/m2")+
   xlab("Species")+
   facet_wrap(~ID_cleaned,scales = "free_x" )+
   guides(fill=guide_legend(title=""))+
   stat_compare_means( aes(label = ..p.signif..), label.x = 1.5, label.y = 10000) +
-  theme_classic()
+  theme_classic()+
+  theme(strip.text = element_blank())+
+  ylab("CH4 flux (umol/d/m2)")+
+  xlab("")
+ # scale_f_manuel(labels= c("A. laurensis", "C. acinaciformis", "N.magnus"))
 
 # t-tests for individual species comparing season
 ami <- season_contrast[season_contrast$ID_cleaned == "Ami",]
@@ -237,53 +245,53 @@ t.test( mean_fluxCH4 ~ campaign, data = nas, paired = TRUE)
 methane flux by mound average for different parts of the day 
 ```{r}
 # merge in real time data from GPS records of mound being tagged (this is an overall mound estimate for the may campaign mounds)
+maymounds <- mounds[mounds$campaign == "may22",]
+maymounds_rm <- maymounds[maymounds$sample %in% target_mounds,]
+
+novmounds <- mounds[mounds$campaign == "nov22",]
+novmounds_rm <- novmounds[novmounds$sample %in% target_mounds,]
+
 maytime <- read.csv("/Users/abbeyyatsko/Downloads/mound_gps (1).csv")
 maytime <- maytime[c("name", "realtime")]
 names(maytime)[1] <- 'sample'
-maymounds <- mounds[mounds$campaign == "may22",]
-novmounds <- mounds[mounds$campaign == "nov22",]
-
-maymounds <- merge(maymounds, maytime, by = c("sample")) 
+maymounds <- merge(maymounds_rm, maytime, by = c("sample")) 
 maymounds <- maymounds %>% relocate(realtime, .after = Time_start)
+maymounds$realtime <- strptime(maymounds$realtime, "%H:%M")
 
 novtime <- read.csv("/Users/abbeyyatsko/Downloads/novtimes.csv")
 names(novtime)[2] <- 'realtime'
-novmounds <- merge(novmounds, novtime, by = c("sample")) 
+novmounds <- merge(novmounds_rm, novtime, by = c("sample")) 
 novmounds <- novmounds %>% relocate(realtime, .after = Time_start)
-
-# remove duplicate ID columns 
-# maymounds <- subset( maymounds, select = -c(ID_cleaned.x, ID_cleaned.y) )
-# novmounds <- subset( novmounds, select = -c(ID_cleaned.x, ID_cleaned.y) )
+novmounds$realtime <- strptime(novmounds$realtime, "%H:%M")
 
 # plot for flux by time of day - may
-g1 <- ggplot(data = maymounds, aes(x = realtime, y = flux.CH4)) + 
-  geom_boxplot()+ 
-  geom_jitter(aes(col=avg_respT))+
-  scale_color_distiller(palette = "Spectral")+ 
-  scale_x_discrete(guide = guide_axis(angle = 90)) +
- # facet_wrap(~ID_cleaned)+
-  ylab("CH4 flux umol/d/m2")+
+ggplot(data = rbind(maymounds, novmounds), aes(x = avg_respT , y = flux.CH4)) + # as.POSIXct(realtime)
+  geom_point()+
+  geom_smooth(method = "lm")+ 
+  #facet_wrap(~ID_cleaned)+
+  #ylab("CH4 flux umol/d/m2")+
   guides(fill=guide_legend(title="Species"))+
-  ylim(0,18000)+
+  theme_classic() +
+  theme(axis.text.x = element_text(size = 7)) +
+  xlab("Average mound surface temperature (C)")+
+  ylab("CH4 flux (umol/d/m2)")
+  
+
+summary(lm(avg_respT ~ as.POSIXct(realtime), data = rbind(maymounds, novmounds)[rbind(maymounds, novmounds)$ID_cleaned == "Copto",]))
+
+summary(lm(flux.CH4 ~ avg_respT, data = rbind(maymounds, novmounds)))
+
+# plot for flux by time of day - nov
+ggplot(data = novmounds, aes(x = avg_respT, y = log(flux.CH4))) + 
+  geom_point()+
+  geom_smooth(method = "lm")+ 
+  facet_wrap(~ID_cleaned, ncol =1)+
+  #ylab("CH4 flux umol/d/m2")+
+  guides(fill=guide_legend(title="Species"))+
   theme_classic() +
   theme(axis.text.x = element_text(size = 5)) 
 
-# plot for flux by time of day - nov
-g2 <- ggplot(data = novmounds, aes(x = realtime, y = flux.CH4)) + 
-  geom_boxplot()+ 
-  geom_jitter(aes(col=avg_respT))+
-  scale_color_distiller(palette = "Spectral")+
-  #facet_wrap(~ID_cleaned)+
-  ylab("CH4 flux umol/d/m2")+
-  scale_x_discrete(limits=c("8:36:45", "8:52:40", "9:13:40", "9:30:10", "9:36:40", "10:07:00", "10:24:30", 
-                            "10:58:00", "11:40:40", "11:43:30", "12:02:15", "12:16:00", "13:32:15", "13:50:30", 
-                            "13:52:00", "14:08:30", "14:22:30", "14:31:00", "14:47:00", "14:51:00", "14:57:15",
-                            "15:34:15", "15:55:40", "16:23:00"), guide = guide_axis(angle = 90)) +
-  guides(fill=guide_legend(title="Species"))+
-  ylim(0,18000)+
-  theme_classic()
-
-ggarrange(g1, g2, ncol = 1, common.legend = TRUE)
+summary(lm(flux.CH4 ~  avg_respT, data = novmounds[novmounds$ID_cleaned == "Ami",]))
 
 ```
 
@@ -292,13 +300,19 @@ methane flux by temperature
 # scatter plot - methane 
 h1 <- ggplot(data = mounds_ID, aes(x = avg_respT, y = flux.CH4)) + 
   geom_point(aes(color = ID_cleaned))+ 
-  geom_smooth(method = 'lm', se = FALSE, aes(color = ID_cleaned))+
+  geom_smooth(method = 'lm', se = FALSE)+
   ylab("CH4 flux umol/d/m2")+
   xlab("Average Mound Surface Temperature (C)")+
   scale_color_brewer("Blues") +
-  facet_wrap(~campaign)+ # take this out to look at overall temperature effect
+  #facet_wrap(~campaign)+ # take this out to look at overall temperature effect
   guides(color=guide_legend(title="Campaign"))+
   theme_linedraw()
+
+# lm by species for both may/nov
+may <- mounds_ID[mounds_ID$campaign == "may22",]
+nov <- mounds_ID[mounds_ID$campaign == "nov22",]
+
+summary(lm(flux.CH4 ~ avg_respT, data = mounds_ID))
 
 # run linear model
 mounds_ID %>% 
@@ -390,14 +404,19 @@ z <- merge(z, species, by = "sample" )
 
 # graph mound flux by mound size (use scaled flux - this is the actual flux being represented by the true size of the mound)
 # methane
-ggplot(data = z[!z$ID_cleaned == "Macro",], aes(x = working_sa_m2, y = log(totalCH4flux), color = campaign)) +  # [z$ID_cleaned == "Ami",]
+z$species <- ifelse(z$ID_cleaned == "Ami", "A. laurensis", "")
+z$species <- ifelse(z$ID_cleaned == "Nasuti", "N. magnus",z$species )
+z$species <- ifelse(z$ID_cleaned == "Copto", "C. acinaciformis", z$species)
+ggplot(data = z[!z$ID_cleaned == "Macro",], aes(x = working_sa_m2, y = log(totalCH4flux))) +
   geom_point()+ 
   geom_smooth(method = 'lm')+
   scale_color_brewer("Blues")+
-  facet_wrap(~ID_cleaned, ncol = 1)+ # scales = "free_x"
+  facet_wrap(~species, ncol = 1)+ # scales = "free_x"
   theme_classic()+
-  ylab("log Total mound CH4 flux umol/d/mound") +
-  xlab("mound surface area")
+  ylab("Total mound CH4 flux (log scale, umol/d/mound)") +
+  xlab("Mound surface area (m2)")
+
+summary(lm(log(totalCH4flux) ~  working_sa_m2, data = z[z$ID_cleaned == "Nasuti",]))
 
 # carbon dioxide
 ggplot(data =  z[z$ID_cleaned == "Ami",], aes(x = working_sa_m2, y = totalCO2flux, color = campaign)) + 

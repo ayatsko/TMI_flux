@@ -134,35 +134,42 @@ ggplot(q1, aes(x = reorder(as.factor(sample), -avg_flux), y = avg_flux, fill = r
   theme_classic()+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
+q1_all$species <- ifelse(q1_all$ID_cleaned.x == "Ami", "A. laurensis", "")
+q1_all$species <- ifelse(q1_all$ID_cleaned.x == "Nasuti", "N. magnus",q1_all$species )
+q1_all$species <- ifelse(q1_all$ID_cleaned.x == "Copto", "C. acinaciformis", q1_all$species)
+
 # plot for high values
 q1H <- q1_all[q1_all$rank == c('top'),]
-q1Hplot <- ggplot(data = q1H, aes(x = sample, y = flux.CH4, fill = ID_cleaned.x)) + 
+q1Hplot <- ggplot(data = q1H, aes(x = sample, y = flux.CH4, fill = species)) + 
   geom_boxplot()+ 
   geom_jitter()+
   ylab("CH4 flux umol/d/m2")+
-  theme_light()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position = "none")+
-  facet_grid(~ as.factor(ID_cleaned.x), 
+  xlab("")+
+  theme_classic()+
+  theme( legend.position = "none")+
+  facet_grid(~ as.factor(species), 
              scales = "free_x",
              space = "free_x",
              switch = "x")+ 
-  scale_fill_brewer(palette="YlOrRd")+
-  ggtitle("mounds w highest average flux")
+  scale_fill_brewer(palette="Blues")+
+  ggtitle("Mounds with highest average CH4 flux")
 
 # plot for low values 
 q1L <- q1_all[q1_all$rank == c('bottom'),]
-q1Lplot <- ggplot(data = q1L, aes(x = sample, y = flux.CH4, fill = ID_cleaned.x)) + 
+q1Lplot <- ggplot(data = q1L, aes(x = sample, y = flux.CH4, fill = species)) + 
   geom_boxplot()+ 
   geom_jitter()+
   ylab("CH4 flux umol/d/m2")+
-  theme_light()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position = "none")+
-  facet_grid(~ as.factor(ID_cleaned.x), 
+  xlab("")+
+  theme_classic()+
+  #theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position = "none")+\
+  theme(legend.position = "none")+
+  facet_grid(~ as.factor(species), 
              scales = "free_x",
              space = "free_x",
              switch = "x")+ 
-  scale_fill_brewer(palette="YlOrRd")+ 
-  ggtitle("mounds w lowest average flux")
+  scale_fill_brewer(palette="Blues")+ 
+  ggtitle("Mounds with lowest average CH4 flux")
 
 # overall sampling for Q1
 ggarrange(q1Hplot, q1Lplot, ncol = 1)
@@ -210,17 +217,22 @@ q2_samps <- as.vector(q2$sample)
 q2_samps <- mounds[ mounds$sample %in% q2_samps, ]
 unique(q2_samps$sample)
 
-ggplot(data = q2_samps, aes(x = as.factor(sample), y = flux.CH4, fill = ID_cleaned)) + 
+q2_samps$species <- ifelse(q2_samps$ID_cleaned == "Ami", "A. laurensis", "")
+q2_samps$species <- ifelse(q2_samps$ID_cleaned == "Nasuti", "N. magnus",q2_samps$species )
+q2_samps$species <- ifelse(q2_samps$ID_cleaned == "Copto", "C. acinaciformis", q2_samps$species)
+
+ggplot(data = q2_samps, aes(x = as.factor(sample), y = flux.CH4, fill = species)) + 
   geom_boxplot()+ 
   geom_jitter()+
-  facet_grid(~ as.factor(ID_cleaned), 
+  facet_grid(~ as.factor(species), 
              scales = "free_x",
              space = "free_x",
              switch = "x")+ 
   ylab("CH4 flux umol/d/m2")+
   xlab("")+
   theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position = "none")
+  theme( legend.position = "none")+
+  scale_fill_brewer(palette="Blues")
 
 # see the overlap of samples in q1 and q2 
 matches <- inner_join(q1, q2, 
