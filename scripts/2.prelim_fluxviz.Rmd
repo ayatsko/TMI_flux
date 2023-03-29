@@ -298,9 +298,9 @@ summary(lm(flux.CH4 ~  avg_respT, data = novmounds[novmounds$ID_cleaned == "Ami"
 methane flux by temperature 
 ```{r}
 # scatter plot - methane 
-h1 <- ggplot(data = mounds_ID, aes(x = avg_respT, y = flux.CH4)) + 
+h1 <- ggplot(data = mounds_ID[!mounds_ID$ID_cleaned == "Macro",], aes(x = avg_respT, y = flux.CH4, color = ID_cleaned)) + 
   geom_point(aes(color = ID_cleaned))+ 
-  geom_smooth(method = 'lm', se = FALSE)+
+  geom_smooth(method = 'loess', se = FALSE)+
   ylab("CH4 flux umol/d/m2")+
   xlab("Average Mound Surface Temperature (C)")+
   scale_color_brewer("Blues") +
