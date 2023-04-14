@@ -209,6 +209,7 @@ aov.mound_average <- aov(mean_fluxCH4 ~ ID_cleaned, data = mound_average[!mound_
 summary(aov.mound_average)
 TukeyHSD(aov.mound_average, conf.level=.95)
 
+
 # compare seasons between each species 
 # first subset mounds by repeated seasonal measures (8 mounds / species)
 nov <- mound_average[mound_average$campaign == "nov22",]
@@ -408,6 +409,8 @@ z$species <- ifelse(z$ID_cleaned == "Ami", "A. laurensis", "")
 z$species <- ifelse(z$ID_cleaned == "Nasuti", "N. magnus",z$species )
 z$species <- ifelse(z$ID_cleaned == "Copto", "C. acinaciformis", z$species)
 ggplot(data = z[!z$ID_cleaned == "Macro",], aes(x = working_sa_m2, y = log(totalCH4flux))) +
+  stat_poly_line() +
+  stat_poly_eq(use_label(c("adj.R2", "f", "p"))) +
   geom_point()+ 
   geom_smooth(method = 'lm')+
   scale_color_brewer("Blues")+

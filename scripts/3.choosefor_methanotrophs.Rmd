@@ -171,6 +171,17 @@ q1Lplot <- ggplot(data = q1L, aes(x = sample, y = flux.CH4, fill = species)) +
   scale_fill_brewer(palette="Blues")+ 
   ggtitle("Mounds with lowest average CH4 flux")
 
+# just looking at one species (proposal presentation figure) 
+q1_ami <- q1_all[q1_all$ID_cleaned.x == c('Ami'),]
+q1Lplot <- ggplot(data = q1_ami, aes(x = sample, y = flux.CH4, fill = rank)) + 
+  geom_boxplot()+ 
+  geom_jitter()+
+  ylab("CH4 flux umol/d/m2")+
+  xlab("")+
+  scale_x_discrete(limits = c("MD37", "MD54", "MD10", "MD47", "MD45", "MD42", "MD23", "MD24"))+
+  theme_classic()+
+  scale_fill_brewer(palette="Blues")
+
 # overall sampling for Q1
 ggarrange(q1Hplot, q1Lplot, ncol = 1)
 
