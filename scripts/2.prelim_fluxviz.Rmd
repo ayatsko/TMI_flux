@@ -91,14 +91,13 @@ a1 <- ggplot(data = mounds_ID, aes(x = sample, y = flux.CH4, fill = campaign)) +
   labs(title = "mound flux")
 
 # all soils
-# a2 <- ggplot(data = soils, aes(x = as.factor(sample), y = flux.CH4, fill = ID_cleaned)) + 
-#   geom_boxplot()+ 
-#   geom_jitter()+
-#   theme_classic()+
-#   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-#   ylab("CH4 flux umol/d/m2")+
-#   labs(title = "soil")
-# ggarrange(a1, a2, ncol=1)
+a2 <- ggplot(data = soils, aes(x = as.factor(sample), y = flux.CH4, fill = ID_cleaned)) +
+  geom_boxplot()+
+  geom_jitter()+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  ylab("CH4 flux umol/d/m2")+
+  labs(title = "soil")
 
 # individual mounds with CH4:CO2
 a3 <- ggplot(data = mounds_ID, aes(x = as.factor(sample), y = ch4_co2, fill = ID_cleaned)) + 
@@ -108,14 +107,7 @@ a3 <- ggplot(data = mounds_ID, aes(x = as.factor(sample), y = ch4_co2, fill = ID
   facet_wrap(~campaign, scales = "free_x")+
   ylim(0,0.05)+ # for outliers
   labs(title = "mound")
-  
-# a4 <- ggplot(data = soils, aes(x = as.factor(sample), y = ch4_co2, fill = ID_cleaned)) + 
-#   geom_boxplot()+ 
-#   theme_classic()+
-#   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-#   ylim(0,2.5)+ # for outliers
-#   labs(title = "soil")
-# ggarrange(a3, a4, ncol=1)
+
 ```
 
 show significant mound methane flux to hardly any soil flux 
@@ -173,43 +165,47 @@ d2 <- ggplot(data = mounds_ID, aes(x = as.factor(directon), y = ch4_co2)) +
   theme_light()
 
 ggarrange(d1, d2, ncol = 1)
-
-# plus by species, across different directions
-d3 <- ggplot(data = mounds_ID, aes(x = ID_cleaned, y = flux.CH4, fill = as.factor(directon))) + 
-  geom_boxplot()+ 
-  facet_wrap(~campaign, scales = "free_x")+
-  ylab("CH4 flux umol/d/m2")+
-  theme_light()
-d4 <- ggplot(data = mounds_ID, aes(x = ID_cleaned, y = ch4_co2, fill = as.factor(directon))) + 
-  geom_boxplot()+ 
-  facet_wrap(~campaign, scales = "free_x")+
-  theme_light()
-
-ggarrange(d3, d4, ncol = 1)
 ```
 
-methane flux by species
+methane flux by species throughout seasons 
 ```{r by species}
-# overall mound methane flux by species
-# first find mound averages 
-mound_average <- mounds_ID %>% group_by(sample, campaign, ID_cleaned) %>% 
-  summarise(mean_fluxCH4=mean(flux.CH4),mean_fluxCO2=mean(flux.CO2_umol), mean_fluxCH4CO2=mean(ch4_co2) )
+# compare species across campaigns 
+all_data <- mounds_ID[!mounds_ID$ID_cleaned =="Macro",]
+all_data$campaign <- as.factor(all_data$campaign)
 
-ggplot(data = mound_average[!mound_average$ID_cleaned =="Macro",], aes(x = as.factor(ID_cleaned), y = mean_fluxCH4, fill = ID_cleaned)) + 
+ggplot(data = all_data, aes(x = campaign, y = flux.CH4, fill = as.factor(ID_cleaned))) + 
   geom_boxplot()+ 
-  stat_compare_means(method = "anova")+
-  scale_fill_brewer("Blues")+
+  geom_jitter()+
+  scale_fill_brewer()+
   ylab("CH4 flux (umol/d/m2)")+
   xlab("")+
-  scale_x_discrete(labels= c("A. laurensis", "C. acinaciformis", "N.magnus"))+
+  scale_x_discrete(limits = c("may22", "aug23", "nov22"))+
+  theme_classic()
+
+# compare campaigns for different species
+ggplot(data = all_data, aes(x = as.factor(ID_cleaned), y = flux.CH4, fill = campaign)) + 
+  geom_boxplot()+
+  geom_jitter()+
+  scale_fill_brewer()+
+  ylab("CH4 flux (umol/d/m2)")+
+  xlab("")+
+  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
+  theme_classic()
+
+# just species effect 
+ggplot(data = all_data, aes(x = as.factor(ID_cleaned), y = flux.CH4, fill = as.factor(ID_cleaned))) + 
+  geom_boxplot()+ 
+  scale_fill_brewer()+
+  ylab("CH4 flux (umol/d/m2)")+
+  xlab("")+
+  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
   theme_classic()+
-  theme(legend.position="none")
+  theme(legend.position = "none")
 
-aov.mound_average <- aov(mean_fluxCH4 ~ ID_cleaned, data = mound_average[!mound_average$ID_cleaned =="Macro",])
-summary(aov.mound_average)
-TukeyHSD(aov.mound_average, conf.level=.95)
+```
 
 
+```{r}
 # compare seasons between each species 
 # first subset mounds by repeated seasonal measures (8 mounds / species)
 nov <- mound_average[mound_average$campaign == "nov22",]
@@ -232,14 +228,6 @@ ggplot(season_contrast, aes(x = as.factor(species), y = mean_fluxCH4, fill = cam
   ylab("CH4 flux (umol/d/m2)")+
   xlab("")
  # scale_f_manuel(labels= c("A. laurensis", "C. acinaciformis", "N.magnus"))
-
-# t-tests for individual species comparing season
-ami <- season_contrast[season_contrast$ID_cleaned == "Ami",]
-t.test( mean_fluxCH4 ~ campaign, data = ami, paired = TRUE)
-cop <- season_contrast[season_contrast$ID_cleaned == "Copto",]
-t.test( mean_fluxCH4 ~ campaign, data = cop, paired = TRUE)
-nas <- season_contrast[season_contrast$ID_cleaned == "Nasuti",]
-t.test( mean_fluxCH4 ~ campaign, data = nas, paired = TRUE)
 
 ```
 

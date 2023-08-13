@@ -139,6 +139,7 @@ data_merge2$CO2_dry_mmol=
 
 ## Calculate chamber fluxes
 ## Identify start of fluxes
+meta_TMI2<-meta_TMI2[!(meta_TMI2$sample=="MD61"),]
 Time_start2 <- meta_TMI2[,c("fDOY_start","sample")]
 flux.times2=unique(Time_start2$fDOY_start)
 
@@ -162,6 +163,9 @@ fluxes.CO2_aug$p.CO2=0
 ## Remove initial empty column
 fluxes.CO2_aug=fluxes.CO2_aug[,-1]
 fluxes.CH4_aug=fluxes.CH4_aug[,-1]
+
+# something weird with MD 61 
+data_merge2<-data_merge2[!(data_merge2$sample=="MD61"),]
 
 ## For each start time (aug 23)
 for (i in flux.times2) {
@@ -207,25 +211,15 @@ for (i in flux.times2) {
 
 # merge metadata back in to flux files 
 # CO2
-meta_TMI <- meta_TMI %>%
-  rename(Time_start = fDOY_start)
 meta_TMI2 <- meta_TMI2 %>%
-  rename(Time_start = fDOY_start)
+  dplyr::rename(Time_start = Time_start2)
 
-CO2_fluxfinal_may22 <- merge(fluxes.CO2_may, meta_TMI, by="Time_start")
-CO2_fluxfinal_may22$campaign <- "may22"
-CO2_fluxfinal_nov22 <- merge(fluxes.CO2_nov, meta_TMI2, by="Time_start")
-CO2_fluxfinal_nov22$campaign <- "nov22"
-
-CO2_fluxfinal_all <- rbind.fill(CO2_fluxfinal_may22, CO2_fluxfinal_nov22)
+CO2_fluxfinal_aug23 <- merge(fluxes.CO2_aug, meta_TMI2, by="Time_start")
+CO2_fluxfinal_aug23$campaign <- "aug23"
 
 # CH4
-CH4_fluxfinal_may22 <- merge(fluxes.CH4_may, meta_TMI, by="Time_start")
-CH4_fluxfinal_may22$campaign <- "may22"
-CH4_fluxfinal_nov22 <- merge(fluxes.CH4_nov, meta_TMI2, by="Time_start")
-CH4_fluxfinal_nov22$campaign <- "nov22"
-
-CH4_fluxfinal_all <- rbind.fill(CH4_fluxfinal_may22, CH4_fluxfinal_nov22)
+CH4_fluxfinal_aug23 <- merge(fluxes.CH4_aug, meta_TMI2, by="Time_start")
+CH4_fluxfinal_aug23$campaign <- "aug23"
 
 ## Export fluxes as .csv file
 # CO2 (units are mmol/day)
@@ -233,4 +227,25 @@ CH4_fluxfinal_all <- rbind.fill(CH4_fluxfinal_may22, CH4_fluxfinal_nov22)
 
 # CH4 (units are umol/day)
 # write.csv(CH4_fluxfinal_all,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_all.csv", row.names = FALSE)
-```
+
+# merge in species data to flux data 
+species <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/Abbey termites .xlsx - Sheet1.csv")
+species <- species[c("X", "ID_cleaned")]
+
+# merge sp and CH4flux_final, CO2_fluxfinal
+colnames(species)[1] = "sample"
+
+CH4_fluxfinal <- merge(CH4_fluxfinal_aug23, species, by = c("sample")) 
+CO2_fluxfinal <- merge(CH4_fluxfinal_aug23, species, by = c("sample")) 
+
+mounds <- CH4_fluxfinal[CH4_fluxfinal$flux_source == 'm',]
+soils <- CH4_fluxfinal[CH4_fluxfinal$flux_source == 's',]
+
+ggplot(data = mounds, aes(x = ID_cleaned, y = flux.CH4, fill = ID_cleaned)) + 
+  geom_boxplot()+ 
+  geom_jitter()+
+  #facet_wrap(~ID_cleaned, scales = "free_x")+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  ylab("CH4 flux umol/d/m2")+
+  labs(title = "mound flux")
