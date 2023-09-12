@@ -1,5 +1,12 @@
+---
+title: "5.DAILY_process"
+author: "abbey yatsko"
+date: "2023-09-12"
+output: html_document
+---
+libraries
+```{r workspace prep}
 library(data.table)
-library(scales)
 library(ggplot2)
 library(ggpubr)
 library(sqldf)
@@ -7,8 +14,10 @@ library(dplyr)
 library(tidyverse)
 library(stringr)
 library(plyr)
+```
 
-# workplace setup 
+Aug 2023 data load and prep
+```{r}
 setwd("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/aug23LGR_daily")
 filenames <- list.files(pattern='f00',full.names=T)
 
@@ -29,15 +38,36 @@ fDOY <- as.numeric(julian(date_time,'2023-01-01'))  #Change for year
 Hour <- as.numeric(format(date_time,'%k'))
 Min <- as.numeric(format(date_time,'%M'))
 Sec <- as.numeric(format(date_time,'%S'))
-data_clean_day <- cbind(date_time,Year,Month,Day,fDOY,Hour,Min,Sec,data_s[,-1])
+data_clean_day <- cbind(date_time,Year,Month,Day,fDOY,Hour,Min,Sec,data_s)
 
 # save LGR data as dt
 data_clean_day <- data.table(data_clean_day)
+```
 
+Preliminary visualization for entire df (check and make sure fluxes show up)
+```{r}
+# for co2
+co2 <- ggplot(data_clean_day, aes(date_time, X.CO2.d_ppm)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ggtitle("CO2 flux")
+
+# for ch4 
+ch4 <- ggplot(data_clean_day, aes(date_time, X.CH4.d_ppm)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ggtitle("CH4 flux")
+```
+
+Merge with metadata
+```{r}
 meta_TMI_day <- read.csv('/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/TMI_flux_metadata_aug_daily.csv')
 
 as.Date(meta_TMI_day$measurement_day_actual, '%m/%d/%Y')
+```
 
+Add start and end time for flux measurements
+```{r}
 ## Pull out date and time data
 date_time_start <- strptime(paste(meta_TMI_day$measurement_day_actual,meta_TMI_day$flux_start),'%m/%d/%Y %H:%M:%S')
 
@@ -64,9 +94,12 @@ data_clean_day <- data_clean_day %>%
                 CO2 = X.CO2._ppm,
                 CH4_dry = X.CH4.d_ppm,
                 CO2_dry = X.CO2.d_ppm)
+```
 
+Merge LGR files with metadata 
+```{r}
 # complete merge for respiration data and metadata (aug)
-data_merge_day <- sqldf("select data_clean_day.fDOY, data_clean_day.CO2_dry, data_clean_day.CH4_dry, meta_TMI_day.sample, meta_TMI_day.avg_respT, meta_TMI_day.flux_source, meta_TMI_day.position, meta_TMI_day.tag, meta_TMI_day.directon, meta_TMI_day.chamber, meta_TMI_day.chamber_SA_cm2, meta_TMI_day.fDOY_start 
+data_merge_day <- sqldf("select data_clean_day.fDOY, data_clean_day.CO2_dry, data_clean_day.CH4_dry, meta_TMI_day.sample, meta_TMI_day.avg_respT, meta_TMI_day.flux_source, meta_TMI_day.position, meta_TMI_day.tag, meta_TMI_day.directon, meta_TMI_day.chamber, meta_TMI_day.chamber_SA_cm2, meta_TMI_day.time_of_day, meta_TMI_day.fDOY_start 
 from data_clean_day LEFT JOIN meta_TMI_day ON (data_clean_day.fDOY BETWEEN meta_TMI_day.fDOY_start AND meta_TMI_day.fDOY_end)")
 
 # use 'complete.cases'
@@ -74,7 +107,23 @@ data_merge_day <- data_merge_day[complete.cases(data_merge_day), ]
 
 # check to make sure all of the samples are there (9 mounds total)
 summary(unique(data_merge_day$sample))
+```
 
+Visually check clipped bits of data 
+```{r}
+# co2 (xlim=c(226.4767, 226.4833) corresponds to only DM1, first measurement)
+par(mfrow=c(2,1),mar=c(4,4,1,1))
+with(data_clean_day,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(226.4767, 226.4833)))
+with(data_merge_day,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(226.4767, 226.4833)))
+
+# ch4 
+par(mfrow=c(2,1),mar=c(4,4,1,1))
+with(data_clean_day,plot(fDOY,CH4_dry,ylim=c(1, 10), xlim=c(226.4767, 226.4833)))
+with(data_merge_day,plot(fDOY,CH4_dry,ylim=c(1,10), xlim=c(226.4767, 226.4833)))
+```
+
+Convert ppm to moles for CH4 and CO2
+```{r}
 # use known volume of chamber (in m3) to convert ppm of gas to liters of gas
 # small, h = 5.7 cm, d = 7.8 cm
 sm <- pi*((7.8/2)^2)*5.7
@@ -122,7 +171,10 @@ data_merge_day$CH4_dry_umol=
 data_merge_day$CO2_dry_mmol=
   # (atm pressure * L CO2) / (R in L*atm/?K*mol * ?K temp) * 10^3 mmol/mol
   ((1*data_merge_day$CO2_dry_L)/(0.08206*(data_merge_day$avg_respT+273)))*10^3
+```
 
+Calculate chamber fluxes
+```{r}
 ## Identify start of fluxes
 Time_start <- meta_TMI_day[,c("fDOY_start","sample")]
 flux.times=unique(Time_start$fDOY_start)
@@ -187,7 +239,10 @@ for (i in flux.times) {
   # p-value of slope
   fluxes.CO2_aug$p.CO2[j]=summary(mod)$coefficients[2,4]
 }
+```
 
+Finalize fluxes, merge back with metadata and extract
+```{r}
 # merge metadata back in to flux files 
 # CO2
 meta_TMI_day <- meta_TMI_day %>%
@@ -206,31 +261,55 @@ species <- species[c("X", "ID_cleaned")]
 
 # merge sp and CH4flux_final, CO2_fluxfinal
 colnames(species)[1] = "sample"
+colnames(species)[2] = "species"
 
-CH4_fluxfinal <- merge(CH4_fluxfinal_aug23_day, species, by = c("sample")) 
-CO2_fluxfinal <- merge(CO2_fluxfinal_aug23_day, species, by = c("sample")) 
+CH4_fluxfinal_aug23_day <- merge(CH4_fluxfinal_aug23_day, species, by = c("sample")) 
+CO2_fluxfinal_aug23_day <- merge(CO2_fluxfinal_aug23_day, species, by = c("sample")) 
 
-# new column for methane:co2 -first need to convert CO2 from mmol to umol (in order to match CH4 in units of umol)
-# (conversion factor 1000umol = 1mmol)
-CO2_fluxfinal$flux.CO2_umol <- CO2_fluxfinal$flux.CO2*1000
-CO2_fluxfinal <- CO2_fluxfinal %>% relocate(flux.CO2_umol, .after = flux.CO2)
+## Export fluxes as .csv file
+# CO2 (units are mmol/day)
+# write.csv(CO2_fluxfinal_aug23_day,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_aug23_day.csv", row.names = FALSE)
 
-# take out just CO2 flux to paste in working CH4_fluxfinal df
-a <- CO2_fluxfinal[c("Time_start", "flux.CO2_umol")]
-CH4_fluxfinal <- merge(CH4_fluxfinal, a, by = c("Time_start")) 
-CH4_fluxfinal <- CH4_fluxfinal %>% relocate(flux.CO2_umol, .after = flux.CH4)
+# CH4 (units are umol/day)
+# write.csv(CH4_fluxfinal_aug23_day,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_day.csv", row.names = FALSE)
+```
 
-CH4_fluxfinal$ch4_co2 <-  CH4_fluxfinal$flux.CH4/CH4_fluxfinal$flux.CO2_umol
-CH4_fluxfinal <- CH4_fluxfinal %>% relocate(ch4_co2, .after = flux.CH4)
+Preliminary visualization 
+```{r}
+# reorder time of day categorical variable 
+desired_order <- c("morning", "midday", "afternoon", "night")
 
-# create categories for time of day 
+# Re-order the levels
+CH4_fluxfinal_aug23_day$time_of_day <- factor(as.character(CH4_fluxfinal_aug23_day$time_of_day), levels=desired_order )
 
+# Re-order the data.frame
+CH4_fluxfinal_aug23_day <- CH4_fluxfinal_aug23_day[order(CH4_fluxfinal_aug23_day$time_of_day),]
 
-ggplot(data = CH4_fluxfinal, aes(x = Time_start, y = flux.CH4, color = sample)) + 
-  geom_point()+ 
+# different species for different times of the day
+ggplot(CH4_fluxfinal_aug23_day, aes(x = time_of_day, y = flux.CH4, color = sample))+
+  geom_boxplot()+
   theme_classic()+
-  ylab("CH4 flux umol/d/m2")+
-  facet_wrap(~ID_cleaned, scales = "free")+
-  ylim(0,30000)
+  facet_wrap(~species, scales = "free")
+```
+
+QC check for all measurements
+```{r}
+# check r2 values 
+# co2 
+mean(CO2_fluxfinal_aug23_day$R2.CO2)
+ggplot(CO2_fluxfinal_aug23_day, aes(R2.CO2))+
+  geom_histogram()+
+  theme_classic()
+
+# ch4 
+mean(CH4_fluxfinal_aug23_day$R2.CH4)
+ggplot(CH4_fluxfinal_aug23_day, aes(R2.CH4))+
+  geom_histogram()+
+  theme_classic()
+
+# check p values
+table(CO2_fluxfinal_aug23_day$p.CO2<0.05)
+table(CH4_fluxfinal_aug23_day$p.CH4<0.05)
+```
 
 
