@@ -175,7 +175,6 @@ all_data$campaign <- as.factor(all_data$campaign)
 
 ggplot(data = all_data, aes(x = campaign, y = flux.CH4, fill = as.factor(ID_cleaned))) + 
   geom_boxplot()+ 
-  geom_jitter()+
   scale_fill_brewer()+
   ylab("CH4 flux (umol/d/m2)")+
   xlab("")+
@@ -185,7 +184,6 @@ ggplot(data = all_data, aes(x = campaign, y = flux.CH4, fill = as.factor(ID_clea
 # compare campaigns for different species
 ggplot(data = all_data, aes(x = as.factor(ID_cleaned), y = flux.CH4, fill = campaign)) + 
   geom_boxplot()+
-  geom_jitter()+
   scale_fill_brewer()+
   ylab("CH4 flux (umol/d/m2)")+
   xlab("")+
@@ -202,6 +200,23 @@ ggplot(data = all_data, aes(x = as.factor(ID_cleaned), y = flux.CH4, fill = as.f
   theme_classic()+
   theme(legend.position = "none")
 
+```
+
+r2 distribution of fluxes 
+```{r}
+# co2 
+mean(CO2_fluxfinal$R2.CO2)
+ggplot(CO2_fluxfinal, aes(R2.CO2))+
+  geom_histogram()+
+  theme_classic()
+
+# ch4 
+mean(CH4_fluxfinal$R2.CH4)
+ggplot(CH4_fluxfinal, aes(R2.CH4))+
+  geom_histogram()+
+  theme_classic()
+
+weird <- CH4_fluxfinal[CH4_fluxfinal$R2.CH4 < 0.5,]
 ```
 
 
@@ -450,46 +465,3 @@ nov_avg <- novmounds %>% group_by(ID_cleaned) %>%
 # final units for average fluxes are now in ug CH4/m2*d
 ```
 
-
-
-
-
-
-
-
-
-
-
-
-# methane vs. co2 regression 
-```{r}
-# new df with sample, ch4 and co2 
-reg <- merge(CH4_fluxfinal, CO2_fluxfinal, by = c("Time_start")) 
-reg <- reg[, c("Time_start", "flux.CH4", "flux.CO2", "flux.CO2_umol", "flux_source.x", "ID_cleaned.x", "avg_respT.x" )]
-str(reg)
-reg_mounds <- reg[reg$flux_source.x == 'm',]
-reg_soils <- reg[reg$flux_source.x == 's',]
-
-i1 <- ggplot(data = reg, aes(x = flux.CH4, y = flux.CO2_umol, color = ID_cleaned.x)) + 
-  geom_point(alpha=0.5)+ 
-  xlab("CH4 flux umol/d/m2")+
-  ylab("CO2 flux umol/d/m2")+
-  geom_smooth(method = 'lm')+
-  labs(title = "mound+soil")+
-  theme_light()
-i2 <- ggplot(data = reg_mounds, aes(x =log(flux.CO2_umol) , y =log(flux.CH4), color = ID_cleaned.x)) +
-  geom_point(alpha=0.5)+ 
-  ylab("CH4 flux umol/d/m2")+
-  xlab("CO2 flux umol/d/m2")+
-  geom_smooth(method = 'lm')+
-  labs(title = "mound")+
-  theme_light()
-i3 <- ggplot(data = reg_soils, aes(x = flux.CH4, y = flux.CO2_umol, color = ID_cleaned.x)) + 
-  geom_point(alpha=0.5)+ 
-  xlab("CH4 flux umol/d/m2")+
-  ylab("CO2 flux umol/d/m2")+
-  geom_smooth(method = 'lm')+
-  labs(title = "soil")+
-  theme_light()
-ggarrange(i1, i2, i3)
-```

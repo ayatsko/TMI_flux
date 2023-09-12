@@ -24,7 +24,7 @@ library(plyr)
 ```
 
 ## 1. May 2022 data load and prep
-* may 2022 has wonky formatting due to LGR time clock error 
+* may 2022 has wonky formatting due to LGR time clock error - SEPERATE PRELIM PROCESSING 
 
 ```{r data prep}
 # all LGR files loading in
@@ -34,12 +34,10 @@ dataTMI <- list.files(path ="/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/may2
   bind_rows(.id = "file") %>%
   mutate(file = str_extract(file, "f00\\d+"))
 
-# there is a pgp error message at the end of some LGR files. need to remove these lines 
-# remove any entry where there is NA for both x.CH4._ppm and x.CH4._ppm_sd
+# pgp error message occurs at the end of some LGR files - need to remove these lines 
 data_clean <- subset(dataTMI, X.CH4._ppm!="NA")
 
 # read in metadata to alter dates for each f#### file so that the fDOY makes sense 
-# internal time clock in the LGR was broken at the time of use, so dates need to be manipulated
 meta_TMI <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/TMI_flux_metadata_may22.csv")
 file <- unique(meta_TMI$file)
 file_years <- as.data.frame(file)
@@ -62,40 +60,30 @@ data_clean <- merge(data_clean, file_years, by = c("file"))
 # re-order month_alt year_alt 
 data_clean <- data_clean %>% relocate(year_alt, .before = X.CH4._ppm)
 data_clean <- data_clean %>% relocate(month_alt, .before = year_alt)
-```
 
-### Create alternative times 
-* sub in alternative year and month to replace the broken time clock date/time
-```{r alternative time}
-# replace original year (always 2002) in date_time with the alternative year (needed for fDOY)
-# remove 2002 year from Time column so that unique year can be pasted in
+# create alternative times - replace original year (always 2002) with the created alternative year 
 data_clean$Time <- gsub("2002", "", data_clean$Time)
-
-# create altered time column by pasting in alternative year to Time column in the place of the old 2002
-data_clean$time_altyr <- with(data_clean, paste(substr(Time, 1, 8),
-                           year_alt,
-                           substr(Time, 9, nchar(Time)),
-                           sep = ""))
+data_clean$time_altyr <- with(data_clean, paste(substr(Time, 1, 8), year_alt, substr(Time, 9, nchar(Time)), sep = ""))
 
 # remove first two characters from time_altmo column strings (for replacing month)
 data_clean$time_altmo <- substring(data_clean$time_altyr , 5)
 
 # paste in month_alt 
-data_clean$time_alt <- with(data_clean, paste(substr(time_altmo, 1, 0),
-                                   month_alt,
-                                   substr(time_altmo, 1, nchar(time_altmo)),
-                                   sep = ""))
+data_clean$time_alt <- with(data_clean, paste(substr(time_altmo, 1, 0), month_alt,
+  substr(time_altmo, 1, nchar(time_altmo)), substr(time_altmo, 1, nchar(time_altmo)), sep = ""))
 
 # move up time_alt to compare with original Time
 data_clean <- data_clean %>% relocate(time_alt, .before = month_alt)
-```
 
-### Format dates and times 
-```{r datetime format}
-# pull out date and time data - use time_alt
-date_time <- strptime(data_clean[,3],format='%m/%d/%Y %H:%M:%S')
+# select foruseful columns 
+data_clean <- data_clean[c("file", "time_alt", "X.CH4._ppm", "X.CH4._ppm_sd", "X.H2O._ppm", "X.H2O._ppm_sd", "X.CO2._ppm", "X.CO2._ppm_sd", "X.CH4.d_ppm", "X.CH4.d_ppm_sd", "X.CO2.d_ppm", "X.CO2.d_ppm_sd", "GasP_torr", "GasP_torr_sd", "GasT_C", "GasT_C_sd", "AmbT_C", "AmbT_C_sd", "RD0_us", "RD0_us_sd", "RD1_us", "RD1_us_sd", "Fit_Flag", "MIU_VALVE", "MIU_DESC")]
 
-# formatting dates and times ----
+# rename "time_alt" to "Time"
+data_clean <- rename(data_clean, c("time_alt" = "Time"))
+
+# format time 
+date_time <- strptime(data_clean[,2],format='%m/%d/%Y %H:%M:%S')
+
 # add year,month,day,JD,hour,min,sec columns to dataframe
 Year <- as.numeric(format(date_time,'%Y'))
 Month <- as.numeric(format(date_time,'%m'))
@@ -105,6 +93,7 @@ Hour <- as.numeric(format(date_time,'%k'))
 Min <- as.numeric(format(date_time,'%M'))
 Sec <- as.numeric(format(date_time,'%S'))
 data_clean <- cbind(date_time,Year,Month,Day,fDOY,Hour,Min,Sec,data_clean[,-3])
+
 # save LGR data as data.table
 data_clean <- data.table(data_clean)
 ```
@@ -135,15 +124,10 @@ meta_TMI <- merge(meta_TMI, file_years, by = c("file"))
 meta_TMI$measurement_day_alt <- "/01/"
 
 # paste in year_alt to the end of measurement_day_alt
-meta_TMI$measurement_day_altyr <- with(meta_TMI, paste(substr(measurement_day_alt, 1, 8),
-                                              year_alt,
-                                              substr(measurement_day_alt, 9, nchar(measurement_day_alt)),
-                                              sep = ""))
+meta_TMI$measurement_day_altyr <- with(meta_TMI, paste(substr(measurement_day_alt, 1, 8), year_alt, substr(measurement_day_alt, 9, nchar(measurement_day_alt)), sep = ""))
+
 # paste in month_alt to beginning of  measurement_day_alt
-meta_TMI$measurement_day_alt <- with(meta_TMI, paste(substr(measurement_day_altyr, 1, 0),
-                                              month_alt,
-                                              substr(measurement_day_altyr, 1, nchar(measurement_day_altyr)),
-                                              sep = ""))
+meta_TMI$measurement_day_alt <- with(meta_TMI, paste(substr(measurement_day_altyr, 1, 0), month_alt, substr(measurement_day_altyr, 1, nchar(measurement_day_altyr)), sep = ""))
 
 # reposition measurement_day_alt in df 
 meta_TMI <- meta_TMI %>% relocate(measurement_day_alt, .before = measurement_day_actual)
