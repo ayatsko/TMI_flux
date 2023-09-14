@@ -14,6 +14,7 @@ library(dplyr)
 library(tidyverse)
 library(stringr)
 library(plyr)
+library(plotly)
 ```
 
 Aug 2023 data load and prep
@@ -310,6 +311,120 @@ ggplot(CH4_fluxfinal_aug23_day, aes(R2.CH4))+
 # check p values
 table(CO2_fluxfinal_aug23_day$p.CO2<0.05)
 table(CH4_fluxfinal_aug23_day$p.CH4<0.05)
+
+# extract everything with R2 < 0.4
+CO2_fluxfinal_aug23_fix <- CO2_fluxfinal_aug23_day[CO2_fluxfinal_aug23_day$R2.CO2 < 0.4,]
+CH4_fluxfinal_aug23_fix <- CH4_fluxfinal_aug23_day[CH4_fluxfinal_aug23_day$R2.CH4 < 0.4,]
 ```
 
+QC CO2
+```{r}
+# list of ID names by unique sample measurement (by creating sample-tag)
+CO2_fluxfinal_aug23_fix$ID_measurement <- paste(CO2_fluxfinal_aug23_fix$sample, CO2_fluxfinal_aug23_fix$tag, CO2_fluxfinal_aug23_fix$time_of_day, sep = "-")
+data_merge_day$ID_measurement <- paste(data_merge_day$sample, data_merge_day$tag, data_merge_day$time_of_day, sep = "-")
+target_CO2 <- as.list(CO2_fluxfinal_aug23_fix$ID_measurement)
+
+# function to troubleshoot and visualize low correlation fluxes 
+CO2_fix <- function(target_CO2, CO2_fluxfinal_aug23_fix, data_merge_day){
+  # select first ID name in list 
+  target_ID <- target_CO2[1]
+ 
+  # in fix file, set Time_start and fDOY_end as xlim_lower and xlim_upper 
+  working <- CO2_fluxfinal_aug23_fix[CO2_fluxfinal_aug23_fix$ID_measurement == target_ID,]
+  records <- data_merge_day[data_merge_day$ID_measurement == target_ID,]
+  xlim_lower <- working$Time_start
+  xlim_upper <- working$fDOY_end
+  ylim_lower <- min(records$CO2_dry) - 5
+  ylim_upper <- max(records$CO2_dry) + 5
+  
+  # plot and label with sample ID name - add to PDF where all are compiled
+  ggplot(data_merge_day, aes(x = fDOY, y = CO2_dry))+
+    geom_point()+
+    theme_classic()+
+    xlim(xlim_lower, xlim_upper)+
+    ylim(ylim_lower, ylim_upper)+
+    ggtitle(target_ID)
+}
+
+# test
+out_CO2 <- sapply(seq_along(target_CO2), function(x) CO2_fix(target_CO2[[x]], CO2_fluxfinal_aug23_fix, data_merge_day), USE.NAMES= TRUE, simplify = FALSE)
+
+ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCO2_aug_day.pdf", 
+   plot = marrangeGrob(out_CO2, nrow=1, ncol=1), 
+   width = 15, height = 9)
+```
+
+QC CH4
+```{r}
+# list of ID names by unique sample measurement (by creating sample-tag)
+CH4_fluxfinal_aug23_fix$ID_measurement <- paste(CH4_fluxfinal_aug23_fix$sample, CH4_fluxfinal_aug23_fix$tag, CH4_fluxfinal_aug23_fix$time_of_day, sep = "-")
+target_CH4 <- as.list(CH4_fluxfinal_aug23_fix$ID_measurement)
+
+# function to troubleshoot and visualize low correlation fluxes 
+CH4_fix <- function(target_CH4, CH4_fluxfinal_aug23_fix, data_merge_day){
+  # select first ID name in list 
+  target_ID <- target_CH4[1]
+ 
+  # in fix file, set Time_start and fDOY_end as xlim_lower and xlim_upper 
+  working <- CH4_fluxfinal_aug23_fix[CH4_fluxfinal_aug23_fix$ID_measurement == target_ID,]
+  records <- data_merge_day[data_merge_day$ID_measurement == target_ID,]
+  xlim_lower <- working$Time_start
+  xlim_upper <- working$fDOY_end
+  ylim_lower <- min(records$CH4_dry) - .1
+  ylim_upper <- max(records$CH4_dry) + .1
+  
+  # plot and label with sample ID name - add to PDF where all are compiled
+  ggplot(data_merge_day, aes(x = fDOY, y = CH4_dry))+
+    geom_point()+
+    theme_classic()+
+    xlim(xlim_lower, xlim_upper)+
+    ylim(ylim_lower, ylim_upper)+
+    ggtitle(target_ID)
+}
+
+# test
+out_CH4 <- sapply(seq_along(target_CH4), function(x) CH4_fix(target_CH4[[x]], CH4_fluxfinal_aug23_fix, data_merge_day), USE.NAMES= TRUE, simplify = FALSE)
+
+ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCH4_aug_day.pdf", 
+   plot = marrangeGrob(out_CH4, nrow=1, ncol=1), 
+   width = 15, height = 9)
+```
+
+UNDER CONSTRUCTION remove/fix QC flagged fluxes 
+```{r}
+# display graphs of problem fluxes to define new start/endpoints
+problem <- c("DM3-2-afternoon", "DM4-2-midday")
+
+p1 <- ggplot(data_merge_day[data_merge_day$ID_measurement == problem[1],], aes(x = fDOY, y = CH4_dry))+
+  geom_point()+
+  theme_classic()
+ggplotly(p1)
+
+p2 <- ggplot(data_merge_day[data_merge_day$ID_measurement == problem[2],], aes(x = fDOY, y = CH4_dry))+
+  geom_point()+
+  theme_classic()
+ggplotly(p2)
+
+# read in troubleshooting metadata
+trouble <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/troubleshooting_samples.csv")
+trouble_test <- trouble[trouble$ID_measurement %in% problem,]
+
+x <- trouble_test[1,]
+x_new <- x[ , colSums(is.na(x))==0]
+
+if("new_start" %in% colnames(x_new)){
+  new_start_val <- x_new$new_start;
+}
+
+if("new_end" %in% colnames(x_new)){
+  new_end_val <- x_new$new_end;
+}
+
+testy <- data_merge_day[!data_merge_day$fDOY < new_start_val, ]
+testy <- data_merge_day[!data_merge_day$fDOY > new_end_val, ]
+
+ggplot(testy[testy$ID_measurement == problem[1],], aes(x = fDOY, y = CO2_dry))+
+  geom_point()+
+  theme_classic()
+```
 
