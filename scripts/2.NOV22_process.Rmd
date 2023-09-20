@@ -392,4 +392,163 @@ ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshootin
    width = 15, height = 9)
 ```
 
+Fix QC flagged fluxes 
+```{r}
+# display graphs of problem fluxes to define new start/endpoints
+problem <- c("MD10-3", "MD55-6")
+
+p1 <- ggplot(data_merge2[data_merge2$ID_measurement == problem[1],], aes(x = fDOY, y = CO2_dry))+
+  geom_point()+
+  theme_classic()
+ggplotly(p1)
+
+p2 <- ggplot(data_merge2[data_merge2$ID_measurement == problem[2],], aes(x = fDOY, y = CO2_dry))+
+  geom_point()+
+  theme_classic()
+ggplotly(p2)
+
+# read in troubleshooting metadata, select for problem fluxes 
+trouble <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/troubleshooting_samples.csv")
+trouble_test <- trouble[trouble$ID_measurement %in% problem,]
+trouble_test <- trouble_test[1:2,]
+
+# fix MD10-3
+fix1 <- data_merge2[data_merge2$ID_measurement == problem[1],]
+ggplot(fix1, aes(x = fDOY, y = CO2_dry))+
+  geom_point()+
+  theme_classic()
+
+s <- trouble_test[1,]
+new_start <- s$new_start
+fixed1 <- fix1[!fix1$fDOY < new_start,]
+
+ggplot(fixed1, aes(x = fDOY, y = CH4_dry))+
+  geom_point()+
+  theme_classic()
+
+# fix MD55-6
+fix2 <- data_merge2[data_merge2$ID_measurement == problem[2],]
+ggplot(fix2, aes(x = fDOY, y = CH4_dry))+
+  geom_point()+
+  theme_classic()
+
+s <- trouble_test[2,]
+new_start <- s$new_start
+fixed2 <- fix2[!fix2$fDOY < new_start,]
+
+ggplot(fixed2, aes(x = fDOY, y = CO2_dry))+
+  geom_point()+
+  theme_classic()
+
+# now need to calculate fluxes for fixed1 and fixed2
+```
+
+fixed fluxes
+```{r}
+# create fixed flux df 
+fluxes.CH4_nov_fix=data.frame(matrix(NA,nrow=2))
+fluxes.CO2_nov_fix=data.frame(matrix(NA,nrow=2))
+
+## Add named columns
+# CH4
+fluxes.CH4_nov_fix$Time_start=0
+fluxes.CH4_nov_fix$flux.CH4=0
+fluxes.CH4_nov_fix$R2.CH4=0
+fluxes.CH4_nov_fix$p.CH4=0
+
+# CO2
+fluxes.CO2_nov_fix$Time_start=0
+fluxes.CO2_nov_fix$flux.CO2=0
+fluxes.CO2_nov_fix$R2.CO2=0
+fluxes.CO2_nov_fix$p.CO2=0
+
+## Remove initial empty column
+fluxes.CO2_nov_fix=fluxes.CO2_nov_fix[,-1]
+fluxes.CH4_nov_fix=fluxes.CH4_nov_fix[,-1]
+
+# CH4
+# fixed1: MD10-3
+# linear model and statistics
+mod <- lm(CH4_dry_umol~fDOY, data = fixed1)
+# Save flux rate and R2 and p-value of slope in corresponding row of dataframe
+fluxes.CH4_nov_fix[1,]$Time_start <- as.numeric(min(fixed1$fDOY))
+fluxes.CH4_nov_fix[1,]$flux.CH4=unique(coef(mod)[2]/fixed1$chamber_SA_m2) # chamber surface area
+fluxes.CH4_nov_fix[1,]$R2.CH4=summary(mod)$r.squared
+fluxes.CH4_nov_fix[1,]$p.CH4=summary(mod)$coefficients[2,4]
+
+# fixed2: MD55-6
+mod <- lm(CH4_dry_umol~fDOY, data = fixed2)
+# Save flux rate and R2 and p-value of slope in corresponding row of dataframe
+fluxes.CH4_nov_fix[2,]$Time_start <- as.numeric(min(fixed2$fDOY))
+fluxes.CH4_nov_fix[2,]$flux.CH4=unique(coef(mod)[2]/fixed2$chamber_SA_m2) # chamber surface area
+fluxes.CH4_nov_fix[2,]$R2.CH4=summary(mod)$r.squared
+fluxes.CH4_nov_fix[2,]$p.CH4=summary(mod)$coefficients[2,4]
+
+# CO2
+# fixed1: MD10-3
+# linear model and statistics
+mod <- lm(CO2_dry_mmol~fDOY, data = fixed1)
+# Save flux rate and R2 and p-value of slope in corresponding row of dataframe
+fluxes.CO2_nov_fix[1,]$Time_start <- as.numeric(min(fixed1$fDOY))
+fluxes.CO2_nov_fix[1,]$flux.CO2=unique(coef(mod)[2]/fixed1$chamber_SA_m2) # chamber surface area
+fluxes.CO2_nov_fix[1,]$R2.CO2=summary(mod)$r.squared
+fluxes.CO2_nov_fix[1,]$p.CO2=summary(mod)$coefficients[2,4]
+
+# fixed2: MD55-6
+mod <- lm(CO2_dry_mmol~fDOY, data = fixed2)
+# Save flux rate and R2 and p-value of slope in corresponding row of dataframe
+fluxes.CO2_nov_fix[2,]$Time_start <- as.numeric(min(fixed2$fDOY))
+fluxes.CO2_nov_fix[2,]$flux.CO2=unique(coef(mod)[2]/fixed2$chamber_SA_m2) # chamber surface area
+fluxes.CO2_nov_fix[2,]$R2.CO2=summary(mod)$r.squared
+fluxes.CO2_nov_fix[2,]$p.CO2=summary(mod)$coefficients[2,4]
+```
+
+add fixed fluxes to final df 
+```{r}
+# first pull out incorrect fluxes from original df 
+a <- data_merge2[data_merge2$ID_measurement %in% problem,]
+original_start_fix <- aggregate(fDOY ~ sample, a, function(x) min(x))
+original_start_fix <-  original_start_fix[['fDOY']]
+
+# add in corrected fluxes - ch4
+working <- CH4_fluxfinal_nov22[CH4_fluxfinal_nov22$Time_start %in% original_start_fix,]
+# remove so that corrected version can be merged back in 
+CH4_fluxfinal_nov22 <- CH4_fluxfinal_nov22[!CH4_fluxfinal_nov22$Time_start %in% original_start_fix,]
+
+working[1,]$flux.CH4 <- fluxes.CH4_nov_fix[1,]$flux.CH4
+working[1,]$R2.CH4 <- fluxes.CH4_nov_fix[1,]$R2.CH4
+working[1,]$p.CH4 <- fluxes.CH4_nov_fix[1,]$p.CH4
+
+working[2,]$flux.CH4 <- fluxes.CH4_nov_fix[2,]$flux.CH4
+working[2,]$R2.CH4 <- fluxes.CH4_nov_fix[2,]$R2.CH4
+working[2,]$p.CH4 <- fluxes.CH4_nov_fix[2,]$p.CH4
+
+# add in corrected fluxes - co2
+working_c <- CO2_fluxfinal_nov22[CO2_fluxfinal_nov22$Time_start %in% original_start_fix,]
+# remove so that corrected version can be merged back in 
+CO2_fluxfinal_nov22 <- CO2_fluxfinal_nov22[!CO2_fluxfinal_nov22$Time_start %in% original_start_fix,]
+
+working_c[1,]$flux.CO2 <- fluxes.CO2_nov_fix[1,]$flux.CO2
+working_c[1,]$R2.CO2 <- fluxes.CO2_nov_fix[1,]$R2.CO2
+working_c[1,]$p.CO2 <- fluxes.CO2_nov_fix[1,]$p.CO2
+
+working_c[2,]$flux.CO2 <- fluxes.CO2_nov_fix[2,]$flux.CO2
+working_c[2,]$R2.CO2 <- fluxes.CO2_nov_fix[2,]$R2.CO2
+working_c[2,]$p.CO2 <- fluxes.CO2_nov_fix[2,]$p.CO2
+
+# bring back together with finalized, fixed fluxes 
+CH4_fluxfinal_nov22_fixed <- rbind(CH4_fluxfinal_nov22, working)
+CO2_fluxfinal_nov22_fixed <- rbind(CO2_fluxfinal_nov22, working_c)
+
+## Export fluxes as .csv file
+# CO2 (units are mmol/day)
+# write.csv(CO2_fluxfinal_nov22_fixed,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_nov22_fixed.csv", row.names = FALSE)
+
+# CH4 (units are umol/day)
+# write.csv(CH4_fluxfinal_nov22_fixed,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_nov22_fixed.csv", row.names = FALSE)
+
+CO2_fluxfinal_nov22_fix <-
+CH4_fluxfinal_nov22_fix <- CH4_fluxfinal_nov22[CH4_fluxfinal_nov22$R2.CH4 < 0.4,]
+table(CH4_fluxfinal_nov22_fixed$R2.CH4 < 0.4)
+```
 

@@ -15,6 +15,7 @@ library(dplyr)
 library(tidyverse)
 library(stringr)
 library(plyr)
+library(gridExtra)
 ```
 
 May 2022 data load and prep (manually fixing dates due to internal time clock error)
@@ -71,7 +72,7 @@ data_clean <- data_clean %>% relocate(time_alt, .before = month_alt)
 data_clean <- data_clean[c("file", "time_alt", "X.CH4._ppm", "X.CH4._ppm_sd", "X.H2O._ppm", "X.H2O._ppm_sd", "X.CO2._ppm", "X.CO2._ppm_sd", "X.CH4.d_ppm", "X.CH4.d_ppm_sd", "X.CO2.d_ppm", "X.CO2.d_ppm_sd", "GasP_torr", "GasP_torr_sd", "GasT_C", "GasT_C_sd", "AmbT_C", "AmbT_C_sd", "RD0_us", "RD0_us_sd", "RD1_us", "RD1_us_sd", "Fit_Flag", "MIU_VALVE", "MIU_DESC")]
 
 # rename "time_alt" to "Time"
-data_clean <- rename(data_clean, c("time_alt" = "Time"))
+data_clean <- dplyr::rename(data_clean, c("Time" = "time_alt"))
 
 # format time 
 date_time <- strptime(data_clean[,2],format='%m/%d/%Y %H:%M:%S')
@@ -460,5 +461,214 @@ out_CH4 <- sapply(seq_along(target_CH4), function(x) CH4_fix(target_CH4[[x]], CH
 ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCH4_may.pdf", 
    plot = marrangeGrob(out_CH4, nrow=1, ncol=1), 
    width = 15, height = 9)
+```
+
+Fix QC flagged fluxes 
+```{r}
+# ones to remove all together 
+remove <- c("MD19-1", "MD38-4", "MD39-3")
+
+# display graphs of problem fluxes to define new start/endpoints
+problem <- c("MD34-2", "MD45-3", "MD58-6")
+
+ggplot(data_merge[data_merge$ID_measurement == problem[1],], aes(x = fDOY, y = CH4_dry))+
+  geom_point()+
+  theme_classic()+
+  xlim(1065.4252, 1065.4262)
+
+ggplot(data_merge[data_merge$ID_measurement == problem[2],], aes(x = fDOY, y = CH4_dry))+
+  geom_point()+
+  theme_classic()+
+  xlim(1369.383, 1369.3842)
+
+ggplot(data_merge[data_merge$ID_measurement == problem[3],], aes(x = fDOY, y = CH4_dry))+
+  geom_point()+
+  theme_classic()+
+  xlim(1734.3896, 1734.3905)
+
+# read in troubleshooting metadata, select for problem fluxes 
+trouble <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/troubleshooting_samples.csv")
+trouble_test <- trouble[trouble$ID_measurement %in% problem,]
+trouble_test <- trouble_test[1:3,]
+
+# fix MD34-2
+fix1 <- data_merge[data_merge$ID_measurement == problem[1],]
+ggplot(fix1, aes(x = fDOY, y = CH4_dry))+
+  geom_point()+
+  theme_classic()
+
+e <- trouble_test[1,]
+new_end <- e$new_end
+fixed1 <- fix1[!fix1$fDOY > new_end,]
+
+ggplot(fixed1, aes(x = fDOY, y = CH4_dry))+
+  geom_point()+
+  theme_classic()
+
+# fix MD45-3
+fix2 <- data_merge[data_merge$ID_measurement == problem[2],]
+ggplot(fix2, aes(x = fDOY, y = CH4_dry))+
+  geom_point()+
+  theme_classic()
+
+e <- trouble_test[2,]
+new_end <- e$new_end
+fixed2 <- fix2[!fix2$fDOY > new_end,]
+
+ggplot(fixed2, aes(x = fDOY, y = CH4_dry))+
+  geom_point()+
+  theme_classic()
+
+# fix MD58-6
+fix3 <- data_merge[data_merge$ID_measurement == problem[3],]
+ggplot(fix3, aes(x = fDOY, y = CH4_dry))+
+  geom_point()+
+  theme_classic()
+
+s <- trouble_test[3,]
+new_start <- s$new_start
+fixed3 <- fix3[!fix3$fDOY < new_start,]
+
+ggplot(fixed3, aes(x = fDOY, y = CH4_dry))+
+  geom_point()+
+  theme_classic()
+
+# now need to calculate fluxes for fixed1 and fixed2 and fixed3
+```
+
+fixed fluxes
+```{r}
+# create fixed flux df 
+fluxes.CH4_may_fix=data.frame(matrix(NA,nrow=3))
+fluxes.CO2_may_fix=data.frame(matrix(NA,nrow=3))
+
+## Add named columns
+# CH4
+fluxes.CH4_may_fix$Time_start=0
+fluxes.CH4_may_fix$flux.CH4=0
+fluxes.CH4_may_fix$R2.CH4=0
+fluxes.CH4_may_fix$p.CH4=0
+
+# CO2
+fluxes.CO2_may_fix$Time_start=0
+fluxes.CO2_may_fix$flux.CO2=0
+fluxes.CO2_may_fix$R2.CO2=0
+fluxes.CO2_may_fix$p.CO2=0
+
+## Remove initial empty column
+fluxes.CO2_may_fix=fluxes.CO2_may_fix[,-1]
+fluxes.CH4_may_fix=fluxes.CH4_may_fix[,-1]
+
+# CH4
+# fixed1: MD34-2
+# linear model and statistics
+mod <- lm(CH4_dry_umol~fDOY, data = fixed1)
+# Save flux rate and R2 and p-value of slope in corresponding row of dataframe
+fluxes.CH4_may_fix[1,]$Time_start <- as.numeric(min(fixed1$fDOY))
+fluxes.CH4_may_fix[1,]$flux.CH4=unique(coef(mod)[2]/fixed1$chamber_SA_m2) # chamber surface area
+fluxes.CH4_may_fix[1,]$R2.CH4=summary(mod)$r.squared
+fluxes.CH4_may_fix[1,]$p.CH4=summary(mod)$coefficients[2,4]
+
+# fixed2: MD45-3
+mod <- lm(CH4_dry_umol~fDOY, data = fixed2)
+# Save flux rate and R2 and p-value of slope in corresponding row of dataframe
+fluxes.CH4_may_fix[2,]$Time_start <- as.numeric(min(fixed2$fDOY))
+fluxes.CH4_may_fix[2,]$flux.CH4=unique(coef(mod)[2]/fixed2$chamber_SA_m2) # chamber surface area
+fluxes.CH4_may_fix[2,]$R2.CH4=summary(mod)$r.squared
+fluxes.CH4_may_fix[2,]$p.CH4=summary(mod)$coefficients[2,4]
+
+# fixed3: MD58-6
+mod <- lm(CH4_dry_umol~fDOY, data = fixed3)
+# Save flux rate and R2 and p-value of slope in corresponding row of dataframe
+fluxes.CH4_may_fix[3,]$Time_start <- as.numeric(min(fixed3$fDOY))
+fluxes.CH4_may_fix[3,]$flux.CH4=unique(coef(mod)[2]/fixed3$chamber_SA_m2) # chamber surface area
+fluxes.CH4_may_fix[3,]$R2.CH4=summary(mod)$r.squared
+fluxes.CH4_may_fix[3,]$p.CH4=summary(mod)$coefficients[2,4]
+
+# CO2
+# fixed1: MD34-2
+# linear model and statistics
+mod <- lm(CO2_dry_mmol~fDOY, data = fixed1)
+# Save flux rate and R2 and p-value of slope in corresponding row of dataframe
+fluxes.CO2_may_fix[1,]$Time_start <- as.numeric(min(fixed1$fDOY))
+fluxes.CO2_may_fix[1,]$flux.CO2=unique(coef(mod)[2]/fixed1$chamber_SA_m2) # chamber surface area
+fluxes.CO2_may_fix[1,]$R2.CO2=summary(mod)$r.squared
+fluxes.CO2_may_fix[1,]$p.CO2=summary(mod)$coefficients[2,4]
+
+# fixed2: MD45-3
+mod <- lm(CO2_dry_mmol~fDOY, data = fixed2)
+# Save flux rate and R2 and p-value of slope in corresponding row of dataframe
+fluxes.CO2_may_fix[2,]$Time_start <- as.numeric(min(fixed2$fDOY))
+fluxes.CO2_may_fix[2,]$flux.CO2=unique(coef(mod)[2]/fixed2$chamber_SA_m2) # chamber surface area
+fluxes.CO2_may_fix[2,]$R2.CO2=summary(mod)$r.squared
+fluxes.CO2_may_fix[2,]$p.CO2=summary(mod)$coefficients[2,4]
+
+# fixed3: MD58-6
+mod <- lm(CO2_dry_mmol~fDOY, data = fixed3)
+# Save flux rate and R2 and p-value of slope in corresponding row of dataframe
+fluxes.CO2_may_fix[3,]$Time_start <- as.numeric(min(fixed3$fDOY))
+fluxes.CO2_may_fix[3,]$flux.CO2=unique(coef(mod)[2]/fixed3$chamber_SA_m2) # chamber surface area
+fluxes.CO2_may_fix[3,]$R2.CO2=summary(mod)$r.squared
+fluxes.CO2_may_fix[3,]$p.CO2=summary(mod)$coefficients[2,4]
+```
+
+add fixed fluxes to final df 
+```{r}
+# first pull out incorrect fluxes from original df 
+a <- data_merge[data_merge$ID_measurement %in% problem,]
+original_start_fix <- aggregate(fDOY ~ sample, a, function(x) min(x))
+original_start_fix <-  original_start_fix[['fDOY']]
+
+# add in corrected fluxes - ch4
+working <- CH4_fluxfinal_may22[CH4_fluxfinal_may22$Time_start %in% original_start_fix,]
+# remove so that corrected version can be merged back in 
+CH4_fluxfinal_may22 <- CH4_fluxfinal_may22[!CH4_fluxfinal_may22$Time_start %in% original_start_fix,]
+
+working[1,]$flux.CH4 <- fluxes.CH4_may_fix[1,]$flux.CH4
+working[1,]$R2.CH4 <- fluxes.CH4_may_fix[1,]$R2.CH4
+working[1,]$p.CH4 <- fluxes.CH4_may_fix[1,]$p.CH4
+
+working[2,]$flux.CH4 <- fluxes.CH4_may_fix[2,]$flux.CH4
+working[2,]$R2.CH4 <- fluxes.CH4_may_fix[2,]$R2.CH4
+working[2,]$p.CH4 <- fluxes.CH4_may_fix[2,]$p.CH4
+
+working[3,]$flux.CH4 <- fluxes.CH4_may_fix[3,]$flux.CH4
+working[3,]$R2.CH4 <- fluxes.CH4_may_fix[3,]$R2.CH4
+working[3,]$p.CH4 <- fluxes.CH4_may_fix[3,]$p.CH4
+
+# add in corrected fluxes - co2
+working_c <- CO2_fluxfinal_may22[CO2_fluxfinal_may22$Time_start %in% original_start_fix,]
+# remove so that corrected version can be merged back in 
+CO2_fluxfinal_may22 <- CO2_fluxfinal_may22[!CO2_fluxfinal_may22$Time_start %in% original_start_fix,]
+
+working_c[1,]$flux.CO2 <- fluxes.CO2_may_fix[1,]$flux.CO2
+working_c[1,]$R2.CO2 <- fluxes.CO2_may_fix[1,]$R2.CO2
+working_c[1,]$p.CO2 <- fluxes.CO2_may_fix[1,]$p.CO2
+
+working_c[2,]$flux.CO2 <- fluxes.CO2_may_fix[2,]$flux.CO2
+working_c[2,]$R2.CO2 <- fluxes.CO2_may_fix[2,]$R2.CO2
+working_c[2,]$p.CO2 <- fluxes.CO2_may_fix[2,]$p.CO2
+
+working_c[3,]$flux.CO2 <- fluxes.CO2_may_fix[3,]$flux.CO2
+working_c[3,]$R2.CO2 <- fluxes.CO2_may_fix[3,]$R2.CO2
+working_c[3,]$p.CO2 <- fluxes.CO2_may_fix[3,]$p.CO2
+
+# bring back together with finalized, fixed fluxes 
+CH4_fluxfinal_may22_fixed <- rbind(CH4_fluxfinal_may22, working)
+CO2_fluxfinal_may22_fixed <- rbind(CO2_fluxfinal_may22, working_c)
+
+# WORKING HERE then remove the ones that were unfixable crap (3 traces)
+CO2_fluxfinal_may22_fixed$ID_measurement <- paste(CO2_fluxfinal_may22_fixed$sample, CO2_fluxfinal_may22_fixed$tag, sep = "-")
+CO2_fluxfinal_may22_fixed <- CO2_fluxfinal_may22_fixed[!CO2_fluxfinal_may22_fixed$ID_measurement %in% remove,]
+
+CH4_fluxfinal_may22_fixed$ID_measurement <- paste(CH4_fluxfinal_may22_fixed$sample, CH4_fluxfinal_may22_fixed$tag, sep = "-")
+CH4_fluxfinal_may22_fixed <- CH4_fluxfinal_may22_fixed[!CH4_fluxfinal_may22_fixed$ID_measurement %in% remove,]
+
+## Export fluxes as .csv file
+# CO2 (units are mmol/day)
+# write.csv(CO2_fluxfinal_may22_fixed,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_may22_fixed.csv", row.names = FALSE)
+
+# CH4 (units are umol/day)
+# write.csv(CH4_fluxfinal_may22_fixed,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_may22_fixed.csv", row.names = FALSE)
 ```
 
