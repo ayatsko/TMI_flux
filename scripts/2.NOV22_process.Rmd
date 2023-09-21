@@ -14,6 +14,7 @@ library(dplyr)
 library(tidyverse)
 library(stringr)
 library(plyr)
+library(gridExtra)
 ```
 
 Nov 2022 data load and prep
@@ -540,15 +541,24 @@ working_c[2,]$p.CO2 <- fluxes.CO2_nov_fix[2,]$p.CO2
 CH4_fluxfinal_nov22_fixed <- rbind(CH4_fluxfinal_nov22, working)
 CO2_fluxfinal_nov22_fixed <- rbind(CO2_fluxfinal_nov22, working_c)
 
+# quick recheck on QC (anything that is <0.4 is due to near-zero fluxes)
+# co2 
+mean(CO2_fluxfinal_nov22_fixed$R2.CO2)
+ggplot(CO2_fluxfinal_nov22_fixed, aes(R2.CO2))+
+  geom_histogram()+
+  theme_classic()
+
+# ch4 
+mean(CH4_fluxfinal_nov22_fixed$R2.CH4)
+ggplot(CH4_fluxfinal_nov22_fixed, aes(R2.CH4))+
+  geom_histogram()+
+  theme_classic()
+
 ## Export fluxes as .csv file
 # CO2 (units are mmol/day)
 # write.csv(CO2_fluxfinal_nov22_fixed,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_nov22_fixed.csv", row.names = FALSE)
 
 # CH4 (units are umol/day)
 # write.csv(CH4_fluxfinal_nov22_fixed,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_nov22_fixed.csv", row.names = FALSE)
-
-CO2_fluxfinal_nov22_fix <-
-CH4_fluxfinal_nov22_fix <- CH4_fluxfinal_nov22[CH4_fluxfinal_nov22$R2.CH4 < 0.4,]
-table(CH4_fluxfinal_nov22_fixed$R2.CH4 < 0.4)
 ```
 

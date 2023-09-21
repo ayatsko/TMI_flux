@@ -14,6 +14,7 @@ library(dplyr)
 library(tidyverse)
 library(stringr)
 library(plyr)
+library(gridExtra)
 ```
 
 Aug 2023 data load and prep
@@ -270,13 +271,6 @@ colnames(species)[2] = "species"
 
 CH4_fluxfinal_aug23 <- merge(CH4_fluxfinal_aug23, species, by = c("sample")) 
 CO2_fluxfinal_aug23 <- merge(CO2_fluxfinal_aug23, species, by = c("sample")) 
-
-## Export fluxes as .csv file
-# CO2 (units are mmol/day)
-# write.csv(CO2_fluxfinal_aug23,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_aug23.csv", row.names = FALSE)
-
-# CH4 (units are umol/day)
-# write.csv(CH4_fluxfinal_aug23,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23.csv", row.names = FALSE)
 ```
 
 Preliminary visualization 
@@ -395,5 +389,15 @@ out_CH4 <- sapply(seq_along(target_CH4), function(x) CH4_fix(target_CH4[[x]], CH
 ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCH4_aug.pdf", 
    plot = marrangeGrob(out_CH4, nrow=1, ncol=1), 
    width = 15, height = 9)
+```
+
+nothing to fix - export files
+```{r}
+## Export fluxes as .csv file
+# CO2 (units are mmol/day)
+# write.csv(CO2_fluxfinal_aug23,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_aug23_fixed.csv", row.names = FALSE)
+
+# CH4 (units are umol/day)
+# write.csv(CH4_fluxfinal_aug23,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_fixed.csv", row.names = FALSE)
 ```
 

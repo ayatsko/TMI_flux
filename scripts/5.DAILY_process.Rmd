@@ -15,6 +15,7 @@ library(tidyverse)
 library(stringr)
 library(plyr)
 library(plotly)
+library(gridExtra)
 ```
 
 Aug 2023 data load and prep
@@ -536,6 +537,19 @@ working_c[2,]$p.CO2 <- fluxes.CO2_aug_fix[2,]$p.CO2
 # bring back together with finalized, fixed fluxes 
 CH4_fluxfinal_aug23_day_fixed <- rbind(CH4_fluxfinal_aug23_day, working)
 CO2_fluxfinal_aug23_day_fixed <- rbind(CO2_fluxfinal_aug23_day, working_c)
+
+# quick recheck on QC (anything that is <0.4 is due to near-zero fluxes)
+# co2 
+mean(CO2_fluxfinal_aug23_day_fixed$R2.CO2)
+ggplot(CO2_fluxfinal_aug23_day_fixed, aes(R2.CO2))+
+  geom_histogram()+
+  theme_classic()
+
+# ch4 
+mean(CH4_fluxfinal_aug23_day_fixed$R2.CH4)
+ggplot(CH4_fluxfinal_aug23_day_fixed, aes(R2.CH4))+
+  geom_histogram()+
+  theme_classic()
 
 ## Export fluxes as .csv file
 # CO2 (units are mmol/day)
