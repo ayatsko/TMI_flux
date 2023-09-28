@@ -355,6 +355,10 @@ CH4_fluxfinal_may22 <- merge(CH4_fluxfinal_may22, maytime, by = c("sample"))
 CH4_fluxfinal_may22 <- CH4_fluxfinal_may22 %>% relocate(flux_start_real, .after = Time_start)
 CH4_fluxfinal_may22$flux_start_real <- as.POSIXct(CH4_fluxfinal_may22$flux_start_real, format = "%H:%M")
 
+CO2_fluxfinal_may22 <- merge(CO2_fluxfinal_may22, maytime, by = c("sample")) 
+CO2_fluxfinal_may22 <- CO2_fluxfinal_may22 %>% relocate(flux_start_real, .after = Time_start)
+CO2_fluxfinal_may22$flux_start_real <- as.POSIXct(CO2_fluxfinal_may22$flux_start_real, format = "%H:%M")
+
 # temperature throughout the day
 ggplot(CH4_fluxfinal_may22, aes(x = flux_start_real, y = avg_respT))+
   geom_point()+
@@ -676,6 +680,13 @@ mean(CH4_fluxfinal_may22_fixed$R2.CH4)
 ggplot(CH4_fluxfinal_may22_fixed, aes(R2.CH4))+
   geom_histogram()+
   theme_classic()
+
+# fix true flux start times
+CH4_fluxfinal_may22_fixed <- CH4_fluxfinal_may22_fixed[ , !names(CH4_fluxfinal_may22_fixed) %in% c("flux_start")]
+colnames(CH4_fluxfinal_may22_fixed)[colnames(CH4_fluxfinal_may22_fixed) == "flux_start_real"] ="flux_start"
+
+CO2_fluxfinal_may22_fixed <- CO2_fluxfinal_may22_fixed[ , !names(CO2_fluxfinal_may22_fixed) %in% c("flux_start")]
+colnames(CO2_fluxfinal_may22_fixed)[colnames(CO2_fluxfinal_may22_fixed) == "flux_start_real"] ="flux_start"
 
 ## Export fluxes as .csv file
 # CO2 (units are mmol/day)

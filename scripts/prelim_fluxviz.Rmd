@@ -1,5 +1,5 @@
 ---
-title: "2.prelim_fluxviz"
+title: "6.prelim_viz"
 author: "abbey yatsko"
 date: "26/08/2022"
 output: html_document
@@ -20,374 +20,166 @@ library(rstatix)
 
 read in data 
 ```{r data load}
-CO2_fluxfinal <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_all.csv")
-CH4_fluxfinal<- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_all.csv")
+may_CO2 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_may22_fixed.csv")
+may_CH4 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_may22_fixed.csv")
+
+nov_CO2 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_nov22_fixed.csv")
+nov_CH4 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_nov22_fixed.csv")
+
+aug_CO2 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_aug23_fixed.csv")
+aug_CH4 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_fixed.csv")
+
+aug_day_CO2 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_aug23_day_fixed.csv")
+aug_day_CH4 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_day_fixed")
 ```
 
 data clean and reorganize
 ```{r}
-# merge in species data to flux data 
-species <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/Abbey termites .xlsx - Sheet1.csv")
-species <- species[c("X", "ID_cleaned")]
+# lists of CO2 and CH4 files from different seasons
+CH4_all <- list(may_CH4, nov_CH4, aug_CH4)
+CO2_all <- list(may_CO2, nov_CO2, aug_CO2)
 
-# merge sp and CH4flux_final, CO2_fluxfinal
-colnames(species)[1] = "sample"
+# create new column for methane:co2
+# for each element in list 
+x <- data.frame(CO2_all[1])
+y <- data.frame(CH4_all[1])
 
-CH4_fluxfinal <- merge(CH4_fluxfinal, species, by = c("sample")) 
-CO2_fluxfinal <- merge(CO2_fluxfinal, species, by = c("sample")) 
+full_df <- function(x, y){
+  # merge CO2 and CH4 df together 
+  all <- full_join(x, y)
 
-# new column for methane:co2
-# first need to convert CO2 from mmol to umol (in order to match CH4 in units of umol)
-# (conversion factor 1000umol = 1mmol)
-CO2_fluxfinal$flux.CO2_umol <- CO2_fluxfinal$flux.CO2*1000
-CO2_fluxfinal <- CO2_fluxfinal %>% relocate(flux.CO2_umol, .after = flux.CO2)
+  # convert CO2 from mmol to umol (in order to match CH4 units, conversion factor 1000umol = 1mmol)
+  all$flux.CO2_umol <- all$flux.CO2*1000
+  all <- all %>% relocate(flux.CO2_umol, .after = flux.CO2)
+  all <- all %>% relocate(flux.CH4, .after = flux.CO2_umol)
+  all <- all %>% relocate(R2.CH4, .after = R2.CO2)
+  all <- all %>% relocate(p.CH4, .after = p.CO2)
+  
+  # define column for ratio of CH4:CO2
+  all$CH4_CO2 <-  all$flux.CH4/all$flux.CO2_umol
+  all <- all %>% relocate(CH4_CO2, .after = flux.CH4)
 
-# take out just CO2 flux to paste in working CH4_fluxfinal df
-a <- CO2_fluxfinal[c("Time_start", "flux.CO2_umol")]
-CH4_fluxfinal <- merge(CH4_fluxfinal, a, by = c("Time_start")) 
-CH4_fluxfinal <- CH4_fluxfinal %>% relocate(flux.CO2_umol, .after = flux.CH4)
+}
 
-CH4_fluxfinal$ch4_co2 <-  CH4_fluxfinal$flux.CH4/CH4_fluxfinal$flux.CO2_umol
-CH4_fluxfinal <- CH4_fluxfinal %>% relocate(ch4_co2, .after = flux.CH4)
+out <- lapply(seq_along(CH4_all), function(x) full_df(CH4_all[[x]], CO2_all[[x]]))
+all_fluxes <- do.call("rbind.fill", out)
 
-# new column to add arboreal where 1 = arboreal, 0 = not arboreal
-CO2_fluxfinal$arboreal[CO2_fluxfinal$chamber == "mini"] <- 1
-CO2_fluxfinal$arboreal[!CO2_fluxfinal$chamber == "mini"] <- 0
+# rename species with scientific names 
+all_fluxes$species_s <- ifelse(all_fluxes$species == "Ami", "A. laurensis","")
+all_fluxes$species_s <- ifelse(all_fluxes$species == "Nasuti", "N. magnus", all_fluxes$species_s)
+all_fluxes$species_s <- ifelse(all_fluxes$species == "Copto", "C. acinaciformis", all_fluxes$species_s)
 
-CH4_fluxfinal$arboreal[CH4_fluxfinal$chamber == "mini"] <- 1
-CH4_fluxfinal$arboreal[!CH4_fluxfinal$chamber == "mini"] <- 0
-
-# subset df to create just methane from soils and just mounds (for later on. just to have df prepped)
-soils <- CH4_fluxfinal[CH4_fluxfinal$flux_source == 's',]
-mounds <- CH4_fluxfinal[CH4_fluxfinal$flux_source == 'm',]
-
-# arboreal only 
-arboreal <- mounds[mounds$arboreal == 1,]
-
-# omit arboreal from mound measurements 
-mounds <- mounds[mounds$arboreal == 0,]
-
-# remove unidentified mounds 
-mounds[mounds==""] <- NA
-mounds_ID <- mounds[!is.na(mounds$ID_cleaned),]
-mounds_ID$ID_cleaned <- as.factor(mounds_ID$ID_cleaned)
-
-# remove duplicate ID columns 
-# mounds_ID <- subset( mounds_ID, select = -c(ID_cleaned.x, ID_cleaned.y) )
-
-# write.csv(mounds, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/mounds.csv")
+# write.csv(all_fluxes, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes.csv")
 ```
 
-methane flux for individual mounds, comparing seasons, by species
+mound flux by species
 ```{r flux}
-# all mounds
-a1 <- ggplot(data = mounds_ID, aes(x = sample, y = flux.CH4, fill = campaign)) + 
+# overall CH4 flux from three different species
+ggplot(data = all_fluxes, aes(x = species_s, y = flux.CH4, fill = flux_source)) + 
   geom_boxplot()+ 
-  #facet_wrap(~ID_cleaned, scales = "free_x")+
+  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+  
   theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-  ylim(0,18000)+ # removes outliers, makes it easier to see comparisons
+  ylim(0,26000)+ # removes big outlier
   ylab("CH4 flux umol/d/m2")+
-  labs(title = "mound flux")
+  xlab("")
 
-# all soils
-a2 <- ggplot(data = soils, aes(x = as.factor(sample), y = flux.CH4, fill = ID_cleaned)) +
-  geom_boxplot()+
-  geom_jitter()+
-  theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-  ylab("CH4 flux umol/d/m2")+
-  labs(title = "soil")
-
-# individual mounds with CH4:CO2
-a3 <- ggplot(data = mounds_ID, aes(x = as.factor(sample), y = ch4_co2, fill = ID_cleaned)) + 
+# overall CO2 flux from three different species
+ggplot(data = all_fluxes, aes(x = species_s, y = flux.CO2, fill = flux_source)) + 
   geom_boxplot()+ 
+  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+  
   theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-  facet_wrap(~campaign, scales = "free_x")+
-  ylim(0,0.05)+ # for outliers
-  labs(title = "mound")
+  #ylim(0,26000)+ # removes big outlier
+  ylab("CO2 flux mmol/d/m2")+
+  xlab("")
 
+# overall CH4:CO2 from three different species
+ggplot(data = all_fluxes, aes(x = species_s, y = CH4_CO2, fill = flux_source)) + 
+  geom_boxplot()+ 
+  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+  
+  theme_classic()+
+  ylab("CH4:CO2")+
+  ylim(0,0.1)+ # removes big outlier
+  xlab("")
 ```
 
-show significant mound methane flux to hardly any soil flux 
-```{r by soil/mound}
-b <- ggplot(data = CH4_fluxfinal, aes(x = as.factor(flux_source), y = flux.CH4)) + 
-  geom_boxplot()+ 
-  geom_jitter()+
-  theme_light()
-```
-
-mound and soil methane flux by position
+mound and soil methane flux by position, direction
 ```{r by position}
 # mounds 
-c1 <- ggplot(data = mounds_ID, aes(x = as.factor(ID_cleaned), y = flux.CH4, fill = position)) + 
-  geom_boxplot()+ 
-  facet_wrap(~campaign, scales = "free_x")+
-  ylab("CH4 flux umol/d/m2")+
-  xlab("Species")+
-  scale_fill_brewer("Blues")+
-  guides(fill=guide_legend(title="Position"))+
-  theme_light()
-
-c2 <- ggplot(data = mounds_ID, aes(x = as.factor(ID_cleaned), y = ch4_co2, fill = position)) + 
+ggplot(data = all_fluxes[all_fluxes$flux_source == "m",], aes(x = species_s, y = flux.CH4, fill = position))+ 
   geom_boxplot()+
-  facet_wrap(~campaign, scales = "free_x")+
-  ylab("CH4:CO2")+
-  xlab("Species")+
-  scale_fill_brewer("Blues")+
-  guides(fill=guide_legend(title="Position"))+
-  ylim(0,0.07)+ # for outliers
-  theme_light()
-
-ggarrange(c1, c2, ncol = 1, common.legend = TRUE)
-
-# soils (shows decreasing as you move from the mound, but all together insignificant flux)
-c3 <- ggplot(data = soils, aes(x = as.factor(position), y = flux.CH4, fill = ID_cleaned)) + 
-  geom_boxplot()+ 
-  facet_wrap(~campaign, scales = "free_x")+
+  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+
   ylab("CH4 flux umol/d/m2")+
-  scale_fill_brewer("Blues")+
-  theme_light()
+  xlab("Position")+
+  theme_classic()
+
+ggplot(data = all_fluxes[all_fluxes$flux_source == "m",], aes(x = species_s, y = flux.CH4, fill = directon))+ 
+  geom_boxplot()+
+  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+
+  ylab("CH4 flux umol/d/m2")+
+  xlab("Position")+
+  theme_classic()
+
+# soils 
+ggplot(data = all_fluxes[all_fluxes$flux_source == "s",], aes(x = species_s, y = flux.CH4, fill = position)) + 
+  geom_boxplot()+ 
+  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+
+  ylab("CH4 flux umol/d/m2")+
+  xlab("Position")+
+  theme_classic()
 ```
 
-methane flux for mounds based on cardinal direction of measurement
-```{r by direction}
-# all mounds, across different directions
-d1 <- ggplot(data = mounds_ID, aes(x = as.factor(directon), y = flux.CH4)) + 
-  geom_boxplot()+ 
-  facet_wrap(~campaign, scales = "free_x")+
-  ylab("CH4 flux umol/d/m2")+
-  theme_light()
-d2 <- ggplot(data = mounds_ID, aes(x = as.factor(directon), y = ch4_co2)) + 
-  geom_boxplot()+ 
-  facet_wrap(~campaign, scales = "free_x")+
-  theme_light()
-
-ggarrange(d1, d2, ncol = 1)
-```
-
-methane flux by species throughout seasons 
+mound flux by time of year
 ```{r by species}
-# compare species across campaigns 
-all_data <- mounds_ID[!mounds_ID$ID_cleaned =="Macro",]
-all_data$campaign <- as.factor(all_data$campaign)
+# reorder levels of campaigns 
+all_fluxes$campaign <- factor(all_fluxes$campaign, levels = c("may22", "aug23", "nov22"))
 
-ggplot(data = all_data, aes(x = campaign, y = flux.CH4, fill = as.factor(ID_cleaned))) + 
-  geom_boxplot()+ 
-  scale_fill_brewer()+
-  ylab("CH4 flux (umol/d/m2)")+
-  xlab("")+
-  scale_x_discrete(limits = c("may22", "aug23", "nov22"))+
-  theme_classic()
-
-# compare campaigns for different species
-ggplot(data = all_data, aes(x = as.factor(ID_cleaned), y = flux.CH4, fill = campaign)) + 
+# overall CH4 flux by campaign
+sp_all_fluxes <- all_fluxes[all_fluxes$species %in% c("Nasuti", "Ami", "Copto"),]
+ggplot(data = sp_all_fluxes, aes(x = campaign, y = flux.CH4, fill = species_s)) + 
   geom_boxplot()+
-  scale_fill_brewer()+
-  ylab("CH4 flux (umol/d/m2)")+
-  xlab("")+
-  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
-  theme_classic()
-
-# just species effect 
-ggplot(data = all_data, aes(x = as.factor(ID_cleaned), y = flux.CH4, fill = as.factor(ID_cleaned))) + 
-  geom_boxplot()+ 
-  scale_fill_brewer()+
-  ylab("CH4 flux (umol/d/m2)")+
-  xlab("")+
-  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
   theme_classic()+
-  theme(legend.position = "none")
-
-```
-
-r2 distribution of fluxes 
-```{r}
-# co2 
-mean(CO2_fluxfinal$R2.CO2)
-ggplot(CO2_fluxfinal, aes(R2.CO2))+
-  geom_histogram()+
-  theme_classic()
-
-# ch4 
-mean(CH4_fluxfinal$R2.CH4)
-ggplot(CH4_fluxfinal, aes(R2.CH4))+
-  geom_histogram()+
-  theme_classic()
-
-weird <- CH4_fluxfinal[CH4_fluxfinal$R2.CH4 < 0.5,]
-```
-
-
-```{r}
-# compare seasons between each species 
-# first subset mounds by repeated seasonal measures (8 mounds / species)
-nov <- mound_average[mound_average$campaign == "nov22",]
-target_mounds <- unique(nov$sample)
-season_contrast <- mound_average[mound_average$sample %in% target_mounds,]
-season_contrast$species <- ifelse(season_contrast$ID_cleaned == "Ami", "A. laurensis", "")
-season_contrast$species <- ifelse(season_contrast$ID_cleaned == "Nasuti", "N. magnus",season_contrast$species )
-season_contrast$species <- ifelse(season_contrast$ID_cleaned == "Copto", "C. acinaciformis", season_contrast$species)
-
-ggplot(season_contrast, aes(x = as.factor(species), y = mean_fluxCH4, fill = campaign)) + 
-  geom_boxplot()+ 
-  scale_fill_brewer("Blues", labels=c('Wet-to-dry', 'Dry-to-wet'))+
+  ylim(0,26000)+ # removes big outlier
   ylab("CH4 flux umol/d/m2")+
-  xlab("Species")+
-  facet_wrap(~ID_cleaned,scales = "free_x" )+
-  guides(fill=guide_legend(title=""))+
-  stat_compare_means( aes(label = ..p.signif..), label.x = 1.5, label.y = 10000) +
-  theme_classic()+
-  theme(strip.text = element_blank())+
-  ylab("CH4 flux (umol/d/m2)")+
   xlab("")
- # scale_f_manuel(labels= c("A. laurensis", "C. acinaciformis", "N.magnus"))
 
+# compare campaigns directly for different species
+ggplot(data = all_fluxes, aes(x = species_s, y = flux.CH4, fill = campaign)) + 
+  geom_boxplot()+
+  theme_classic()+
+  ylim(0,26000)+ # removes big outlier
+  ylab("CH4 flux umol/d/m2")+
+  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+
+  xlab("")
 ```
 
-methane flux by mound average for different parts of the day 
+relationship between mound flux and temperature, time of day
 ```{r}
-# merge in real time data from GPS records of mound being tagged (this is an overall mound estimate for the may campaign mounds)
-maymounds <- mounds[mounds$campaign == "may22",]
-maymounds_rm <- maymounds[maymounds$sample %in% target_mounds,]
-
-novmounds <- mounds[mounds$campaign == "nov22",]
-novmounds_rm <- novmounds[novmounds$sample %in% target_mounds,]
-
-maytime <- read.csv("/Users/abbeyyatsko/Downloads/mound_gps (1).csv")
-maytime <- maytime[c("name", "realtime")]
-names(maytime)[1] <- 'sample'
-maymounds <- merge(maymounds_rm, maytime, by = c("sample")) 
-maymounds <- maymounds %>% relocate(realtime, .after = Time_start)
-maymounds$realtime <- strptime(maymounds$realtime, "%H:%M")
-
-novtime <- read.csv("/Users/abbeyyatsko/Downloads/novtimes.csv")
-names(novtime)[2] <- 'realtime'
-novmounds <- merge(novmounds_rm, novtime, by = c("sample")) 
-novmounds <- novmounds %>% relocate(realtime, .after = Time_start)
-novmounds$realtime <- strptime(novmounds$realtime, "%H:%M")
-
-# plot for flux by time of day - may
-ggplot(data = rbind(maymounds, novmounds), aes(x = avg_respT , y = flux.CH4)) + # as.POSIXct(realtime)
+# temperature
+ggplot(sp_all_fluxes, aes(x = avg_respT, y = flux.CH4))+
   geom_point()+
-  geom_smooth(method = "lm")+ 
-  #facet_wrap(~ID_cleaned)+
-  #ylab("CH4 flux umol/d/m2")+
-  guides(fill=guide_legend(title="Species"))+
-  theme_classic() +
-  theme(axis.text.x = element_text(size = 7)) +
-  xlab("Average mound surface temperature (C)")+
-  ylab("CH4 flux (umol/d/m2)")
-  
-
-summary(lm(avg_respT ~ as.POSIXct(realtime), data = rbind(maymounds, novmounds)[rbind(maymounds, novmounds)$ID_cleaned == "Copto",]))
-
-summary(lm(flux.CH4 ~ avg_respT, data = rbind(maymounds, novmounds)))
-
-# plot for flux by time of day - nov
-ggplot(data = novmounds, aes(x = avg_respT, y = log(flux.CH4))) + 
-  geom_point()+
-  geom_smooth(method = "lm")+ 
-  facet_wrap(~ID_cleaned, ncol =1)+
-  #ylab("CH4 flux umol/d/m2")+
-  guides(fill=guide_legend(title="Species"))+
-  theme_classic() +
-  theme(axis.text.x = element_text(size = 5)) 
-
-summary(lm(flux.CH4 ~  avg_respT, data = novmounds[novmounds$ID_cleaned == "Ami",]))
-
-```
-
-methane flux by temperature 
-```{r}
-# scatter plot - methane 
-h1 <- ggplot(data = mounds_ID[!mounds_ID$ID_cleaned == "Macro",], aes(x = avg_respT, y = flux.CH4, color = ID_cleaned)) + 
-  geom_point(aes(color = ID_cleaned))+ 
-  geom_smooth(method = 'loess', se = FALSE)+
+  geom_smooth(method = 'lm', se = FALSE)+
   ylab("CH4 flux umol/d/m2")+
   xlab("Average Mound Surface Temperature (C)")+
-  scale_color_brewer("Blues") +
-  #facet_wrap(~campaign)+ # take this out to look at overall temperature effect
-  guides(color=guide_legend(title="Campaign"))+
-  theme_linedraw()
+  theme_classic()
 
-# lm by species for both may/nov
-may <- mounds_ID[mounds_ID$campaign == "may22",]
-nov <- mounds_ID[mounds_ID$campaign == "nov22",]
-
-summary(lm(flux.CH4 ~ avg_respT, data = mounds_ID))
-
-# run linear model
-mounds_ID %>% 
-  group_by(ID_cleaned) %>% 
-  group_split() %>% 
-  map_dfr(.f = function(mounds_ID){
-    lm(flux.CH4 ~ avg_respT, data = mounds_ID) %>% 
-      glance() %>% 
-      add_column(SPECIES = unique(mounds_ID$ID_cleaned), .before=1)
-  })
-
-h2 <- ggplot(data = mounds_ID, aes(x = avg_respT, y = flux.CO2_umol)) + 
-  geom_point()+ 
-  geom_smooth(method = 'lm')+
-  ylab("CO2 flux umol/d/m2")+
-  xlab("Average Mound Surface Temperature (C)")+
-  facet_wrap(~ID_cleaned, scales = "free_x")+
-  scale_color_brewer("Blues") +
-  guides(color=guide_legend(title="Campaign"))+
-  theme_linedraw()
-
-# run linear model
-mounds_ID %>% 
-  group_by(ID_cleaned) %>% 
-  group_split() %>% 
-  map_dfr(.f = function(mounds_ID){
-    lm(flux.CO2_umol ~ avg_respT, data = mounds_ID) %>% 
-      glance() %>% 
-      add_column(SPECIES = unique(mounds_ID$ID_cleaned), .before=1)
-  })
-
-h3 <- ggplot(data = mounds_ID, aes(x = avg_respT, y = ch4_co2)) + 
-  geom_point()+ 
-  geom_smooth(method = 'lm')+
-  ylab("CH4:CO2")+
-  xlab("Average Mound Surface Temperature (C)")+
-  facet_wrap(~ID_cleaned, scales = "free_x")+
-  scale_color_brewer("Blues") +
-  guides(color=guide_legend(title="Campaign"))+
-  theme_linedraw()
-
-# run linear model
-mounds_ID %>% 
-  group_by(ID_cleaned) %>% 
-  group_split() %>% 
-  map_dfr(.f = function(mounds_ID){
-    lm(ch4_co2 ~ avg_respT, data = mounds_ID) %>% 
-      glance() %>% 
-      add_column(SPECIES = unique(mounds_ID$ID_cleaned), .before=1)
-  })
-
-ggarrange(h1, h2, h3, ncol = 1, common.legend = TRUE)
-
-# average temperature by mound via campaign
-mounds_ID$mound_campaign <- paste(mounds_ID$sample,mounds_ID$campaign, sep = "-")
-x <- aggregate(mounds_ID$avg_respT, list(mounds_ID$mound_campaign), FUN=mean)
-colnames(x)[1] = "mound_campaign"
-colnames(x)[2] = "mound_temp"
-mounds_ID <- merge(mounds_ID, x, by = c("mound_campaign")) 
-str(mounds_ID)
-mounds_ID$campaign <- as.factor(mounds_ID$campaign)
-
-h4 <- ggplot(data = mounds_ID, aes(x = mound_temp, y = flux.CH4, fill = as.factor(sample))) + 
-  geom_boxplot()+ 
+# time of day 
+everyother <- function(x) x[seq_along(x) %% 5 == 0]
+ggplot(sp_all_fluxes, aes(x = flux_start, y = flux.CH4))+
+  geom_point()+
+  facet_wrap(~campaign, scales = "free")+
   ylab("CH4 flux umol/d/m2")+
-  facet_grid(campaign~ID_cleaned)+
-  theme(legend.position="none")+
-  scale_fill_viridis(discrete = TRUE, option = "D")+
-  ylim(0,16000) # for outliers
+  xlab("Average Mound Surface Temperature (C)")+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  scale_x_discrete(breaks = everyother)
 
+#TODO need to fix aug x axis - out of order 
 ```
+
+
+##########################################
+############## DRAFT #####################
+##########################################
 
 scaled mound flux from calculated SA
 ```{r}
