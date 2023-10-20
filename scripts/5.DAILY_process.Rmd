@@ -275,24 +275,6 @@ CO2_fluxfinal_aug23_day <- merge(CO2_fluxfinal_aug23_day, species, by = c("sampl
 # write.csv(CH4_fluxfinal_aug23_day,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_day.csv", row.names = FALSE)
 ```
 
-Preliminary visualization 
-```{r}
-# reorder time of day categorical variable 
-desired_order <- c("morning", "midday", "afternoon", "night")
-
-# Re-order the levels
-CH4_fluxfinal_aug23_day$time_of_day <- factor(as.character(CH4_fluxfinal_aug23_day$time_of_day), levels=desired_order )
-
-# Re-order the data.frame
-CH4_fluxfinal_aug23_day <- CH4_fluxfinal_aug23_day[order(CH4_fluxfinal_aug23_day$time_of_day),]
-
-# different species for different times of the day
-ggplot(CH4_fluxfinal_aug23_day, aes(x = time_of_day, y = flux.CH4, color = sample))+
-  geom_boxplot()+
-  theme_classic()+
-  facet_wrap(~species, scales = "free")
-```
-
 QC check for all measurements
 ```{r}
 # check r2 values 
@@ -557,5 +539,62 @@ ggplot(CH4_fluxfinal_aug23_day_fixed, aes(R2.CH4))+
 
 # CH4 (units are umol/day)
 # write.csv(CH4_fluxfinal_aug23_day_fixed,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_day_fixed", row.names = FALSE)
+```
+
+initial vis 
+
+Preliminary visualization 
+```{r}
+# read in data 
+# CO2 (units are mmol/day)
+CO2_day <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_aug23_day_fixed.csv")
+
+# CH4 (units are umol/day)
+CH4_day <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_day_fixed")
+
+# reorder time of day categorical variable 
+desired_order <- c("morning", "midday", "afternoon", "night")
+
+# Re-order the levels
+CH4_day$time_of_day <- factor(as.character(CH4_day$time_of_day), levels=desired_order )
+CO2_day$time_of_day <- factor(as.character(CO2_day$time_of_day), levels=desired_order )
+
+# Re-order the data.frame
+CH4_day <- CH4_day[order(CH4_day$time_of_day),]
+CO2_day <- CO2_day[order(CO2_day$time_of_day),]
+
+# different species for different times of the day
+d1 <- ggplot(CH4_day, aes(x = time_of_day, y = flux.CH4, fill = time_of_day))+
+  geom_boxplot()+
+  theme_classic()+
+  theme(legend.position="none")+
+  facet_wrap(~species, scales = "free")
+
+# with replicates
+d2 <- ggplot(CH4_day, aes(x = time_of_day, y = flux.CH4, fill = sample))+
+  geom_boxplot()+
+  theme_classic()+
+  facet_wrap(~species, scales = "free")
+ggarrange(d1, d2, ncol = 1)
+
+d3 <- ggplot(CO2_day, aes(x = time_of_day, y = flux.CO2, fill = time_of_day))+
+  geom_boxplot()+
+  theme_classic()+
+  theme(legend.position="none")+
+  facet_wrap(~species, scales = "free")
+
+# with replicates
+d4 <- ggplot(CO2_day, aes(x = time_of_day, y = flux.CO2, fill = sample))+
+  geom_boxplot()+
+  theme_classic()+
+  facet_wrap(~species, scales = "free")
+ggarrange(d3, d4, ncol = 1)
+
+# temperature thoughout daily cycle 
+ggplot(CO2_day, aes(x = time_of_day, y = avg_respT, fill = time_of_day))+
+  geom_boxplot()+
+  theme_classic()+
+  theme(legend.position="none")+
+  facet_wrap(~species, scales = "free")
 ```
 
