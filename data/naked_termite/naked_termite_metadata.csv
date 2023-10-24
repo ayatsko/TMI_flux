@@ -1,0 +1,14 @@
+﻿sample ,flux_source,measurement_day_actual,flux_start,flux_end,collar_cm,material,mass,notes
+ami1_F,field,8/10/2023,13:22:03,13:26:10,5,"mound, termite",163.17,
+ami2_F,field,8/10/2023,13:51,13:55:33,5,termite,1.44,
+nas2_F,field,8/10/2023,14:54:51,14:58:57,5,"mound, termite",175.61,ran a second time as nasute2
+nas4_F,field,8/10/2023,15:20:42,15:24:49,5,termite,0.35,"arduino being weigd, ran a second time as nasut4"
+cp1_F,field,8/10/2023,15:36:37,15:40:44,5,"mound, termite",141.44,
+cp3_F,field,8/10/2023,15:48:19,15:52:26,5,termite,0.03,ran a second time as cp3
+cp4_F,field,8/10/2023,15:56:36,16:00:43,5,carton+termite,232.65,
+cp5_F,field,8/10/2023,16:13:09,16:17:16,5,termite,0.38,termites taken from the mound to get a decent mass sample - there were too few in mound material
+ami1_L,lab,8/31/2023,12:51:57,12:56:04,5,termite,0.09,"soldier, worker"
+nas1_L,lab,8/31/2023,13:07:26,13:11:32,5,termite,0.27,soldier
+cop1_L,lab,8/31/2023,13:12:32,13:16:38,5,termite,0.25,"soldier, worker"
+nas2_L,lab,8/31/2023,13:27:03,13:31:10,5,termite,0.48,soldier
+cop3_L,lab,8/31/2023,13:44:43,13:48:50,5,termite,0.77,"soldier, worker"
