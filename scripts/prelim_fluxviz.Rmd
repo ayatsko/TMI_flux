@@ -71,46 +71,62 @@ all_fluxes$species_s <- ifelse(all_fluxes$species == "Nasuti", "N. magnus", all_
 all_fluxes$species_s <- ifelse(all_fluxes$species == "Copto", "C. acinaciformis", all_fluxes$species_s)
 
 # write.csv(all_fluxes, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes.csv")
+
+# fluxes for repeatedly measured termite mounds: filter out those that are not revisited by the resampling campaigns 
+
+targets1 <- unique(nov_CH4$sample)
+targets2 <- unique(aug_CH4$sample)
+targets <- union(targets1, targets2)
+
+all_fluxes_resample <- all_fluxes[all_fluxes$sample %in% targets, ]
 ```
 
-mound flux by species
+Q1: mound flux by species
 ```{r flux}
 # overall CH4 flux from three different species
-ggplot(data = all_fluxes, aes(x = species_s, y = flux.CH4, fill = flux_source)) + 
+s1 <- ggplot(data = all_fluxes_resample[all_fluxes_resample$flux_source =="m",], aes(x = species_s, y = flux.CH4, fill = species_s)) + 
   geom_boxplot()+ 
   scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+  
   theme_classic()+
   ylim(0,26000)+ # removes big outlier
   ylab("CH4 flux umol/d/m2")+
-  xlab("")
+  xlab("")+ 
+  theme(legend.position = "none")
 
 # overall CO2 flux from three different species
-ggplot(data = all_fluxes, aes(x = species_s, y = flux.CO2, fill = flux_source)) + 
+s2 <- ggplot(data = all_fluxes_resample[all_fluxes_resample$flux_source =="m",], aes(x = species_s, y = flux.CO2, fill = species_s)) + 
   geom_boxplot()+ 
   scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+  
   theme_classic()+
-  #ylim(0,26000)+ # removes big outlier
   ylab("CO2 flux mmol/d/m2")+
-  xlab("")
+  xlab("")+ 
+  theme(legend.position = "none")
 
 # overall CH4:CO2 from three different species
-ggplot(data = all_fluxes, aes(x = species_s, y = CH4_CO2, fill = flux_source)) + 
+s3 <- ggplot(data = all_fluxes_resample[all_fluxes_resample$flux_source =="m",], aes(x = species_s, y = CH4_CO2, fill = species_s)) + 
   geom_boxplot()+ 
   scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+  
   theme_classic()+
   ylab("CH4:CO2")+
-  ylim(0,0.1)+ # removes big outlier
-  xlab("")
+  ylim(0,0.075)+ # removes big outlier
+  xlab("")+ 
+  theme(legend.position = "none")
+
+ggarrange(s1,s2,s3, ncol = 3)
+
+# model to test 
+mod <- lm(flux.CH4 ~ species_s, data = all_fluxes_resample)
+summary(mod)
 
 # table of averages (by species, season)
 detach(package:plyr)
-sp_avg <- all_fluxes %>% group_by(species_s) %>% 
+sp_avg <- all_fluxes_resample %>% group_by(species_s) %>% 
   summarize(mean_CH4flux = mean(flux.CH4), 
             mean_CO2flux = mean(flux.CO2), 
             sd_CH4flux = sd(flux.CH4), 
             sd_CO2flux = sd(flux.CO2))
 
-season_avg <- all_fluxes %>% group_by(species_s, campaign) %>% 
+season_avg <- all_fluxes_resample %>% group_by(species_s, campaign) %>% 
   summarize(mean_CH4flux = mean(flux.CH4), 
             mean_CO2flux = mean(flux.CO2), 
             sd_CH4flux = sd(flux.CH4), 
@@ -121,33 +137,79 @@ season_avg <- all_fluxes %>% group_by(species_s, campaign) %>%
 # molecular mass conversion to g, then conversion back to ug for comparison 
 ```
 
-mound and soil methane flux by position, direction
-```{r by position}
-# mounds 
-ggplot(data = all_fluxes[all_fluxes$flux_source == "m",], aes(x = species_s, y = flux.CH4, fill = position))+ 
-  geom_boxplot()+
-  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+
-  ylab("CH4 flux umol/d/m2")+
-  xlab("Position")+
-  theme_classic()
+Q2: mound flux by mound size
+```{r}
+# find average flux by mound 
+all_fluxes_resample$ID_mound <- paste(all_fluxes_resample$sample, all_fluxes_resample$campaign, sep = "-")
 
-ggplot(data = all_fluxes[all_fluxes$flux_source == "m",], aes(x = species_s, y = flux.CH4, fill = directon))+ 
-  geom_boxplot()+
-  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+
-  ylab("CH4 flux umol/d/m2")+
-  xlab("Position")+
-  theme_classic()
+mound_avg_flux <- all_fluxes_resample %>% group_by(ID_mound, sample, species_s) %>% 
+  summarise(mean_mound_fluxCH4=mean(flux.CH4),
+            mean_mound_fluxCO2=mean(flux.CO2_umol), 
+            mean_mound_fluxCH4_CO2=mean(CH4_CO2))
 
-# soils 
-ggplot(data = all_fluxes[all_fluxes$flux_source == "s",], aes(x = species_s, y = flux.CH4, fill = position)) + 
-  geom_boxplot()+ 
-  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+
-  ylab("CH4 flux umol/d/m2")+
-  xlab("Position")+
-  theme_classic()
+# merge with mound SA
+mound_SA <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/moundSA.csv")
+mound_SA <- mound_SA[, c('sample', 'SA_m2', 'basal_area_m2')]
+mound_SA <- mound_SA[!is.na(mound_SA$SA_m2),]
+mound_avg_flux <- merge(mound_avg_flux, mound_SA, by = "sample" )
+
+# calculate mound-level flux
+mound_avg_flux$mound_CH4flux <- mound_avg_flux$mean_mound_fluxCH4 * mound_avg_flux$SA_m2
+mound_avg_flux$mound_CO2flux <- mound_avg_flux$mean_mound_fluxCO2 * mound_avg_flux$SA_m2
+
+# graph methane flux by mound size (surface/basal area interchangeable: SA_m2/basal_area_m2)
+a1 <- ggplot(data = mound_avg_flux, aes(x = basal_area_m2, y = mean_mound_fluxCH4)) +
+  geom_point()+ 
+  geom_smooth(method = 'lm')+
+  scale_color_brewer("Blues")+
+  facet_wrap(~species_s, scales = "free_x")+ 
+  theme_classic()+
+  ylab("Total mound CH4 flux (umol/d/mound)") +
+  xlab("Mound basal area (m2)")
+
+# graph carbon dioxide flux by mound size 
+a2 <- ggplot(data = mound_avg_flux, aes(x = basal_area_m2, y = mean_mound_fluxCO2)) +
+  geom_point()+ 
+  geom_smooth(method = 'lm')+
+  scale_color_brewer("Blues")+
+  facet_wrap(~species_s, scales = "free_x")+ 
+  theme_classic()+
+  ylab("Total mound CO2 flux (mmol/d/mound)") +
+  xlab("Mound basal area (m2)")
+
+# graph CH4:CO2 flux by mound size 
+a3 <- ggplot(data = mound_avg_flux, aes(x = basal_area_m2, y = mean_mound_fluxCH4_CO2)) +
+  geom_point()+ 
+  geom_smooth(method = 'lm')+
+  scale_color_brewer("Blues")+
+  facet_wrap(~species_s, scales = "free_x")+ 
+  theme_classic()+
+  ylab("Total mound CH4:CO2") +
+  xlab("Mound basal area (m2)")
+
+ggarrange(a1, a2, a3, ncol = 1)
+
+# relationship between surface area and basal area (by species)
+ggplot(data = mound_avg_flux, aes(x = SA_m2, y = basal_area_m2)) +
+  geom_point()+ 
+  geom_smooth(method = 'lm')+
+  scale_color_brewer("Blues")+
+  facet_wrap(~species_s, scales = "free_x")+ 
+  theme_classic()+
+  ylab("Mound basal area (m2)") +
+  xlab("Mound surface area (m2)")
+
+# preliminary models 
+mod <- lm(mean_mound_fluxCO2 ~ basal_area_m2, data = mound_avg_flux)
+summary(mod)
+check_model(mod)
 ```
 
-mound flux by time of year
+Q3. drivers of flux variation throughout the day
+{see 5.DAILY_process.Rmd}
+
+## WORKING HERE 
+Q4. gas flux change across seasons 
 ```{r by species}
 # reorder levels of campaigns 
 all_fluxes$campaign <- factor(all_fluxes$campaign, levels = c("may22", "aug23", "nov22"))
@@ -199,7 +261,7 @@ f2 <- ggplot(data = all_fluxes[all_fluxes$species_s == "A. laurensis",], aes(x =
 ggarrange(f1, f2, f3, f4, f5, f6, f7, f8, f9, common.legend = TRUE)
 ```
 
-relationship between mound flux and temperature, time of day
+Q5. relationship between mound gas flux and temperature
 ```{r}
 # mound flux and temperature
 t1 <- ggplot(sp_all_fluxes, aes(x = avg_respT, y = flux.CH4))+
@@ -260,64 +322,31 @@ ggplot(time_all_fluxes, aes(x = as.POSIXct(flux_start), y = avg_respT, color = a
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 ```
 
-entire mound-level flux incorporating mound SA from photogrammetry
-```{r}
-# find average flux by mound 
-sp_all_fluxes$ID_measurement <- paste(sp_all_fluxes$sample, sp_all_fluxes$campaign, sep = "-")
+mound and soil methane flux by position, direction
+```{r by position}
+# mounds 
+ggplot(data = all_fluxes[all_fluxes$flux_source == "m",], aes(x = species_s, y = flux.CH4, fill = position))+ 
+  geom_boxplot()+
+  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+
+  ylab("CH4 flux umol/d/m2")+
+  xlab("Position")+
+  theme_classic()
 
-mound_avg_flux <- sp_all_fluxes %>% group_by(ID_measurement, sample, species_s) %>% 
-  summarise(mean_mound_fluxCH4=mean(flux.CH4),mean_mound_fluxCO2=mean(flux.CO2_umol), mean_mound_fluxCH4_CO2=mean(CH4_CO2))
+ggplot(data = all_fluxes[all_fluxes$flux_source == "m",], aes(x = species_s, y = flux.CH4, fill = directon))+ 
+  geom_boxplot()+
+  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+
+  ylab("CH4 flux umol/d/m2")+
+  xlab("Position")+
+  theme_classic()
 
-# merge with mound SA
-mound_SA <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/moundSA.csv")
-mound_SA <- mound_SA[, c('sample', 'SA_m2', 'basal_area_m2')]
-mound_SA <- mound_SA[!is.na(mound_SA$SA_m2),]
-mound_avg_flux <- merge(mound_avg_flux, mound_SA, by = "sample" )
-
-# calculate mound-level flux
-mound_avg_flux$mound_CH4flux <- mound_avg_flux$mean_mound_fluxCH4 * mound_avg_flux$SA_m2
-mound_avg_flux$mound_CO2flux <- mound_avg_flux$mean_mound_fluxCO2 * mound_avg_flux$SA_m2
-
-# graph methane flux by mound size (surface/basal area interchangeable: SA_m2/basal_area_m2)
-a1 <- ggplot(data = mound_avg_flux, aes(x = basal_area_m2, y = mean_mound_fluxCH4)) +
-  geom_point()+ 
-  geom_smooth(method = 'lm')+
-  scale_color_brewer("Blues")+
-  facet_wrap(~species_s, scales = "free_x")+ 
-  theme_classic()+
-  ylab("Total mound CH4 flux (umol/d/mound)") +
-  xlab("Mound basal area (m2)")
-
-# graph carbon dioxide flux by mound size 
-a2 <- ggplot(data = mound_avg_flux, aes(x = basal_area_m2, y = mean_mound_fluxCO2)) +
-  geom_point()+ 
-  geom_smooth(method = 'lm')+
-  scale_color_brewer("Blues")+
-  facet_wrap(~species_s, scales = "free_x")+ 
-  theme_classic()+
-  ylab("Total mound CO2 flux (mmol/d/mound)") +
-  xlab("Mound basal area (m2)")
-
-# graph CH4:CO2 flux by mound size 
-a3 <- ggplot(data = mound_avg_flux, aes(x = basal_area_m2, y = mean_mound_fluxCH4_CO2)) +
-  geom_point()+ 
-  geom_smooth(method = 'lm')+
-  scale_color_brewer("Blues")+
-  facet_wrap(~species_s, scales = "free_x")+ 
-  theme_classic()+
-  ylab("Total mound CH4:CO2") +
-  xlab("Mound basal area (m2)")
-
-ggarrange(a1, a2, a3, ncol = 1)
-
-# relationship between surface area and basal area (by species)
-ggplot(data = mound_avg_flux, aes(x = SA_m2, y = basal_area_m2)) +
-  geom_point()+ 
-  geom_smooth(method = 'lm')+
-  scale_color_brewer("Blues")+
-  facet_wrap(~species_s, scales = "free_x")+ 
-  theme_classic()+
-  ylab("Mound basal area (m2)") +
-  xlab("Mound surface area (m2)")
+# soils 
+ggplot(data = all_fluxes[all_fluxes$flux_source == "s",], aes(x = species_s, y = flux.CH4, fill = position)) + 
+  geom_boxplot()+ 
+  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+
+  ylab("CH4 flux umol/d/m2")+
+  xlab("Position")+
+  theme_classic()
 ```
+
+
 
