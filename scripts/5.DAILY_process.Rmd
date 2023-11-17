@@ -18,6 +18,7 @@ library(plotly)
 library(gridExtra)
 library(lme4)
 library(easystats)
+library(respirometry)
 ```
 
 Aug 2023 data load and prep
@@ -663,6 +664,37 @@ report(mod)
 
 calculate Q10
 ```{r}
+# first look - isolate a single mound 
+DM <- CH4_day[CH4_day$sample == "DM1",]
+plot(DM$avg_respT, DM$flux.CH4)
 
+# look at range of temperatures 
+min(DM$avg_respT); max(DM$avg_respT)
+
+test <- DM[order(DM$avg_respT),]
+t <- test$avg_resp
+r <- test$flux.CH4
+Q10(R_vec = r, T_vec = t)
+
+# get list of mound IDs 
+x <- unique(CH4_day$sample)
+
+# Q10 associated with each individual mound
+for (i in x){
+  df <- CH4_day[CH4_day$sample == i,]
+  t <- df$avg_resp
+  r <- df$flux.CH4
+  print(Q10(R_vec = r, T_vec = t))
+}
+
+# flux ~ temperature relationships
+par(mfrow = c(3, 3))
+for(i in x){
+  df <- CH4_day[CH4_day$sample == i,]
+  plot(df$avg_respT, df$flux.CH4, main = paste("Mound", i),)
+}
+
+# TODO mound as a random effect in Q10 model, also try model with mound averages
+# same thing with CO2 
 ```
 
