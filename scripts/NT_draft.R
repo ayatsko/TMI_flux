@@ -1,0 +1,236 @@
+####################
+# naked termite feb 
+####################
+# workspace 
+setwd("/Users/abbeyyatsko/Desktop/NT/LGR_files")
+filenames <- list.files(pattern='f000',full.names=T)
+
+library(data.table)
+library(ggplot2)
+library(ggpubr)
+library(sqldf)
+library(dplyr)
+library(tidyverse)
+library(stringr)
+library(plyr)
+
+# read in LGR datafiles to list and go from .txt to .csv 
+dat <- lapply(filenames,read.csv,skip=1)
+dat <- rbindlist(dat)
+dat <- subset(dat, X.CH4._ppm!="NA")
+as.character(dat$Time)
+
+date_time <- strptime(dat$Time,format='%d/%m/%Y %H:%M:%S')
+
+# add year,month,day,JD,hour,min,sec columns to dataframe
+Year <- as.numeric(format(date_time,'%Y'))
+Month <- as.numeric(format(date_time,'%m'))
+Day <- as.numeric(format(date_time,'%d'))
+fDOY <- as.numeric(julian(date_time,'2024-01-01'))  #Change for year
+Hour <- as.numeric(format(date_time,'%k'))
+Min <- as.numeric(format(date_time,'%M'))
+Sec <- as.numeric(format(date_time,'%S'))
+data_clean <- cbind(date_time,Year,Month,Day,fDOY,Hour,Min,Sec,dat)
+
+# save LGR data as dt
+data_clean <- data.table(data_clean)
+ggplot(data_clean, aes(date_time, X.CH4.d_ppm)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ggtitle("flux")+
+  scale_x_datetime(limits = c(as.POSIXct("2024-03-01 11:58:00"), as.POSIXct("2024-03-01 13:19:50")))
+
+# plotly_code <- ggplotly(samp)
+
+# merge with metadata
+meta_TMI <- read.csv('/Users/abbeyyatsko/Desktop/NT/arduino_files/NTmetadata.csv')
+as.Date(meta_TMI$measurement_day, '%m/%d/%Y')
+
+# define start time
+date_time_start <- strptime(paste(meta_TMI$measurement_day,meta_TMI$flux_start),'%m/%d/%Y %H:%M:%S')
+
+## Add 30 seconds to set buffered start time
+date_time_start <- date_time_start+60
+
+## Add 90 sec to determine end time
+date_time_end <- date_time_start+180
+
+## Add fDOY columns for start and endtime to dataframe
+fDOY_start <- as.numeric(julian(date_time_start,'2024-01-01'))  #Change for year
+fDOY_end <- as.numeric(julian(date_time_end,'2024-01-01'))  #Change for year
+meta_TMI <- cbind(fDOY_start,fDOY_end,meta_TMI)
+
+# change sample to factor level variables 
+meta_TMI$ID <- as.factor(meta_TMI$ID) 
+
+# rename co2 and ch4 columns because naming format including '.' messes up the sql code 
+data_clean <- data_clean %>%
+  dplyr::rename(CH4 = X.CH4._ppm,
+                CO2 = X.CO2._ppm,
+                CH4_dry = X.CH4.d_ppm,
+                CO2_dry = X.CO2.d_ppm)
+
+# merge LGR files with metadata 
+# complete merge for respiration data and metadata (aug)
+data_merge <- sqldf("select data_clean.fDOY, data_clean.CO2_dry, data_clean.CH4_dry, meta_TMI.ID, meta_TMI.material, meta_TMI.chunk, meta_TMI.avg_temp_C, meta_TMI.collar_volume_cm3, meta_TMI.mass_termite_g, meta_TMI.material_volume_cm3, meta_TMI.fDOY_start 
+from data_clean LEFT JOIN meta_TMI ON (data_clean.fDOY BETWEEN meta_TMI.fDOY_start AND meta_TMI.fDOY_end)")
+
+# use 'complete.cases'
+data_merge <- data_merge[complete.cases(data_merge), ]
+
+# check to make sure all of the samples are there (24 total)
+summary(unique(data_merge$ID))
+
+#Visually check clipped bits of data 
+# co2 (xlim=c(218.4554, 218.4622) corresponds to only MD36 first file)
+par(mfrow=c(2,1),mar=c(4,4,1,1))
+with(data_clean,plot(fDOY,CO2_dry,ylim=c(400,900), xlim=c(65.42015, 65.6151)))
+with(data_merge,plot(fDOY,CO2_dry,ylim=c(400,900), xlim=c(65.42015, 65.6151)))
+
+# ch4 
+par(mfrow=c(2,1),mar=c(4,4,1,1))
+with(data_clean,plot(fDOY,CH4_dry,ylim=c(1.8, 2.5), xlim=c(65.42015, 65.6151)))
+with(data_merge,plot(fDOY,CH4_dry,ylim=c(1.8,2.5), xlim=c(65.42015, 65.6151)))
+
+# convert to moles 
+# chamber volumes are in cm3 - convert to m3 for the next step 
+data_merge$collar_volume_m3 <- data_merge$collar_volume_cm3*0.000001
+data_merge$material_volume_m3 <- as.numeric(data_merge$material_volume_cm3)*0.000001
+data_merge$volume_m3 <- data_merge$collar_volume_m3-data_merge$material_volume_m3
+
+# CH4
+data_merge$CH4_dry_L=
+  # parts CH4 per million parts air * volume of air in chamber (m3) * 1000 L per m3
+  (data_merge$CH4_dry/1000000) * data_merge$volume_m3 * 1000 
+
+# CO2
+data_merge$CO2_dry_L=
+  # parts CO2 per million parts air * volume of air in chamber (m3) * 1000 L per m3
+  (data_merge$CO2_dry/1000000) * data_merge$volume_m3 * 1000 
+
+# Use ideal gas law to calculate umol of CH4 or mmol of CO2
+# CH4
+data_merge$CH4_dry_umol=
+  # (atm pressure * L CH4) / (R in L*atm/?K*mol * ?K temp) * 10^6 umol/mol
+  ((1*data_merge$CH4_dry_L)/(0.08206*(data_merge$avg_temp_C+273)))*10^6
+
+# CO2
+data_merge$CO2_dry_mmol=
+  # (atm pressure * L CO2) / (R in L*atm/?K*mol * ?K temp) * 10^3 mmol/mol
+  ((1*data_merge$CO2_dry_L)/(0.08206*(data_merge$avg_temp_C+273)))*10^3
+
+# Calculate chamber fluxes
+## Identify start of fluxes
+Time_start <- meta_TMI[,c("fDOY_start","ID")]
+flux.times=unique(Time_start$fDOY_start)
+
+# Create new dataframes to hold final fluxes 
+fluxes.CH4=data.frame(matrix(NA,nrow=length(flux.times)))
+fluxes.CO2=data.frame(matrix(NA,nrow=length(flux.times)))
+
+## Add named columns
+# CH4
+fluxes.CH4$Time_start=flux.times
+fluxes.CH4$flux.CH4=0
+fluxes.CH4$R2.CH4=0
+fluxes.CH4$p.CH4=0
+fluxes.CH4$sd.CH4=0
+
+# CO2
+fluxes.CO2$Time_start=flux.times
+fluxes.CO2$flux.CO2=0
+fluxes.CO2$R2.CO2=0
+fluxes.CO2$p.CO2=0
+fluxes.CO2$sd.CO2=0
+
+## Remove initial empty column
+fluxes.CO2=fluxes.CO2[,-1]
+fluxes.CH4=fluxes.CH4[,-1]
+
+#i = flux.times[2]
+## For each start time (aug 2023)
+for (i in flux.times) {
+  ## CH4 ##
+  # Subset data for one chamber measurement
+  temp1=subset(data_merge,fDOY_start==i)
+  # Set corresponding row of output table
+  j=which(flux.times==i)
+  # Determine if start time has a CH4 flux
+  if (nrow(temp1)>0) {
+    # If so:  
+    # Calulate flux in umol/day using linear regression
+    mod=with(temp1,lm(CH4_dry_umol~fDOY))
+    # Save flux rate and R2 and p-value of slope in corresponding row of dataframe
+    # flux rate
+    fluxes.CH4$flux.CH4[j]=coef(mod)[2]
+    # R2 of slope
+    fluxes.CH4$R2.CH4[j]=summary(mod)$r.squared
+    # p-value of slope
+    fluxes.CH4$p.CH4[j]=summary(mod)$coefficients[2,4]
+    # sd 
+    fluxes.CH4$sd.CH4[j] <- summary(mod)$coefficients["fDOY", "Std. Error"]
+
+    # If not:
+    # Fill rows of table with NA    
+  } else {
+    fluxes.CH4$flux.CH4[j]=NA
+    fluxes.CH4$R2.CH4[j]=NA
+    fluxes.CH4$p.CH4[j]=NA
+    fluxes.CH4$sd.CH4[j]=NA
+  }
+  ## CO2 ##
+  # Subset data for one chamber measurement
+  temp2=subset(data_merge,fDOY_start==i)
+  # Calulate flux in mmol/day using linear regression
+  mod=with(temp2,lm(CO2_dry_mmol~fDOY))
+  # Save flux rate and R2 and p-value of slope in corresponding row of dataframe
+  # flux rate
+  fluxes.CO2$flux.CO2[j]=coef(mod)[2]
+  # R2 of slope
+  fluxes.CO2$R2.CO2[j]=summary(mod)$r.squared
+  # p-value of slope
+  fluxes.CO2$p.CO2[j]=summary(mod)$coefficients[2,4]
+  # sd 
+  fluxes.CO2$sd.CO2[j] <- summary(mod)$coefficients["fDOY", "Std. Error"]
+}
+
+# finalize and bring back in metadata 
+meta_TMI <- meta_TMI %>%
+  dplyr::rename(Time_start = fDOY_start)
+CO2_fluxfinal <- merge(fluxes.CO2, meta_TMI, by="Time_start")
+CH4_fluxfinal <- merge(fluxes.CH4, meta_TMI, by="Time_start")
+
+# generate summary table 
+CH4_summary <- CH4_fluxfinal[, c("chunk","species", "ID", "material", "mass_termite_g", "flux.CH4", "sd.CH4")]
+CO2_summary <- CO2_fluxfinal[, c("ID", "flux.CO2", "sd.CO2")]
+flux_summary <- left_join(CH4_summary, CO2_summary, by = "ID")
+
+# define termite emission factors
+flux_summary <- flux_summary %>%
+  group_by(chunk) %>%
+  mutate(emission_factor = ifelse(material == "T", flux.CH4 / mass_termite_g, NA))
+
+# data viz 
+# termite emission factor
+# remove first two coptotermes mounds NT08, NT11, NT0811TERM
+rm <- c("NT08", "NT11", "NT0811TERM")
+df_filtered <- subset(flux_summary, !ID %in% rm)
+
+ggplot(df_filtered, aes(x = species, y = emission_factor, fill = species))+
+  geom_boxplot()+
+  geom_jitter()+
+  theme_classic()+
+  theme(legend.position = "none")
+
+# flux by material 
+meth <- ggplot(df_filtered, aes(x = species, y = flux.CH4, fill = material))+
+  geom_boxplot()+
+  geom_jitter()+
+  theme_classic()
+
+co2 <- ggplot(df_filtered, aes(x = species, y = flux.CO2, fill = material))+
+  geom_boxplot()+
+  geom_jitter()+
+  theme_classic()
+
+ggarrange(meth, co2, common.legend = TRUE)

@@ -100,7 +100,7 @@ data_clean4 <- data_clean4 %>%
 
 Merge LGR files with metadata 
 ```{r}
-# complete merge for respiration data and metadata (aug)
+# complete merge for respiration data and metadata (feb)
 data_merge4 <- sqldf("select data_clean4.fDOY, data_clean4.CO2_dry, data_clean4.CH4_dry, meta_TMI4.sample, meta_TMI4.avg_respT, meta_TMI4.flux_source, meta_TMI4.position, meta_TMI4.tag, meta_TMI4.directon, meta_TMI4.chamber, meta_TMI4.chamber_SA_cm2, meta_TMI4.fDOY_start 
 from data_clean4 LEFT JOIN meta_TMI4 ON (data_clean4.fDOY BETWEEN meta_TMI4.fDOY_start AND meta_TMI4.fDOY_end)")
 
@@ -115,13 +115,13 @@ Visually check clipped bits of data
 ```{r}
 # co2 (xlim=c(218.4554, 218.4622) corresponds to only MD36 first file) #change for actual data 
 par(mfrow=c(2,1),mar=c(4,4,1,1))
-with(data_clean3,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(218.4554, 218.4622)))
-with(data_merge3,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(218.4554, 218.4622)))
+with(data_clean4,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(56.41250, 57.543)))
+with(data_merge4,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(56.41250, 57.543)))
 
 # ch4 
 par(mfrow=c(2,1),mar=c(4,4,1,1))
-with(data_clean3,plot(fDOY,CH4_dry,ylim=c(1, 10), xlim=c(218.4554, 218.4622)))
-with(data_merge3,plot(fDOY,CH4_dry,ylim=c(1,10), xlim=c(218.4554, 218.4622)))
+with(data_clean4,plot(fDOY,CH4_dry,ylim=c(1, 10), xlim=c(56.41250, 57.543)))
+with(data_merge4,plot(fDOY,CH4_dry,ylim=c(1,10), xlim=c(56.41250, 57.543)))
 ```
 
 Convert ppm to moles for CH4 and CO2
@@ -182,31 +182,31 @@ Time_start4 <- meta_TMI4[,c("fDOY_start","sample")]
 flux.times4=unique(Time_start4$fDOY_start)
 
 # Create new dataframes to hold final fluxes 
-fluxes.CH4_aug=data.frame(matrix(NA,nrow=length(flux.times4)))
-fluxes.CO2_aug=data.frame(matrix(NA,nrow=length(flux.times4)))
+fluxes.CH4_feb=data.frame(matrix(NA,nrow=length(flux.times4)))
+fluxes.CO2_feb=data.frame(matrix(NA,nrow=length(flux.times4)))
 
 ## Add named columns
 # CH4
-fluxes.CH4_aug$Time_start=flux.times4
-fluxes.CH4_aug$flux.CH4=0
-fluxes.CH4_aug$R2.CH4=0
-fluxes.CH4_aug$p.CH4=0
+fluxes.CH4_feb$Time_start=flux.times4
+fluxes.CH4_feb$flux.CH4=0
+fluxes.CH4_feb$R2.CH4=0
+fluxes.CH4_feb$p.CH4=0
 
 # CO2
-fluxes.CO2_aug$Time_start=flux.times4
-fluxes.CO2_aug$flux.CO2=0
-fluxes.CO2_aug$R2.CO2=0
-fluxes.CO2_aug$p.CO2=0
+fluxes.CO2_feb$Time_start=flux.times4
+fluxes.CO2_feb$flux.CO2=0
+fluxes.CO2_feb$R2.CO2=0
+fluxes.CO2_feb$p.CO2=0
 
 ## Remove initial empty column
-fluxes.CO2_aug=fluxes.CO2_aug[,-1]
-fluxes.CH4_aug=fluxes.CH4_aug[,-1]
+fluxes.CO2_feb=fluxes.CO2_feb[,-1]
+fluxes.CH4_feb=fluxes.CH4_feb[,-1]
 
-## For each start time (aug 2023)
+## For each start time (feb 2024)
 for (i in flux.times4) {
   ## CH4 ##
   # Subset data for one chamber measurement
-  temp1=subset(data_merge3,fDOY_start==i)
+  temp1=subset(data_merge4,fDOY_start==i)
   # Set corresponding row of output table
   j=which(flux.times4==i)
   # Determine if start time has a CH4 flux
@@ -281,4 +281,43 @@ ggplot(CH4_fluxfinal_feb24, aes(R2.CH4))+
   theme_classic()
 ```
 
+prelim viz 
+```{r}
+# merge in species data to flux data 
+species <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/Abbey termites .xlsx - Sheet1.csv")
+species <- species[c("X", "ID_cleaned")]
+
+# merge sp and CH4flux_final, CO2_fluxfinal
+colnames(species)[1] = "sample"
+colnames(species)[2] = "species"
+
+CH4_fluxfinal_feb24 <- merge(CH4_fluxfinal_feb24, species, by = c("sample")) 
+CO2_fluxfinal_feb24 <- merge(CO2_fluxfinal_feb24, species, by = c("sample")) 
+
+# differences among species
+ggplot(CH4_fluxfinal_feb24, aes(x = species, y = flux.CH4, color = species))+
+  geom_boxplot()+
+  theme_classic()
+
+# temperature throughout the day 
+CH4_fluxfinal_feb24$flux_start <- as.POSIXct(CH4_fluxfinal_feb24$flux_start, format = "%H:%M:%S")
+
+ggplot(CH4_fluxfinal_feb24, aes(x = flux_start, y = avg_respT))+
+  geom_point()+
+  theme_classic()
+
+# flux and temperature relationship 
+ggplot(CH4_fluxfinal_feb24, aes(x = avg_respT, y = flux.CH4, color = species))+
+  geom_point()+
+  theme_classic() 
+
+# average mound flux by species and season 
+avg_feb_CH4 <- CH4_fluxfinal_feb24 %>%
+  group_by(species) %>%
+  summarise(avg_CH4 = mean(flux.CH4, na.rm = TRUE))
+
+avg_feb_CO2 <- CO2_fluxfinal_feb24 %>%
+  group_by(species) %>%
+  summarise(avg_CO2 = mean(flux.CO2, na.rm = TRUE))
+```
 

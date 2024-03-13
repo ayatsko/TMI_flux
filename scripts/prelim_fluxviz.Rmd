@@ -37,13 +37,16 @@ aug_CH4 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/
 
 aug_day_CO2 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_aug23_day_fixed.csv")
 aug_day_CH4 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_day_fixed")
+
+feb_CO2 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_feb24.csv")
+feb_CH4 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_feb24.csv")
 ```
 
 data clean and reorganize
 ```{r}
 # lists of CO2 and CH4 files from different seasons
-CH4_all <- list(may_CH4, nov_CH4, aug_CH4)
-CO2_all <- list(may_CO2, nov_CO2, aug_CO2)
+CH4_all <- list(may_CH4, nov_CH4, aug_CH4, feb_CH4)
+CO2_all <- list(may_CO2, nov_CO2, aug_CO2, feb_CO2)
 
 # create new column for methane:co2
 # for each element in list 
@@ -77,12 +80,23 @@ all_fluxes$species_s <- ifelse(all_fluxes$species == "Copto", "C. acinaciformis"
 
 # write.csv(all_fluxes, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes.csv")
 
-# fluxes for repeatedly measured termite mounds: filter out those that are not revisited by the resampling campaigns 
+# summary of how mounds were measured for each campaign
+detach(package:plyr)
+summary_counts <- all_fluxes %>%
+  group_by(campaign, species_s) %>%
+    summarise(unique_samples = n_distinct(sample))
+
+## WORKING HERE ##
+# how many measurements were made for each mound in the resampling campaign (shoudl be 4 or 5)
+
+# filter out those that are not revisited by the resampling campaigns 
 targets1 <- unique(nov_CH4$sample)
 targets2 <- unique(aug_CH4$sample)
+targets3 <- unique(feb_CH4$sample)
 targets <- union(targets1, targets2)
+targets_fin <- union(targets, targets3)
 
-all_fluxes_resample <- all_fluxes[all_fluxes$sample %in% targets, ]
+all_fluxes_resample <- all_fluxes[all_fluxes$sample %in% targets_fin, ]
 
 # omit soil measurements cause they're not needed right now
 all_fluxes_resample <- all_fluxes_resample[all_fluxes_resample$flux_source =="m",]
@@ -91,14 +105,19 @@ all_fluxes_resample$tag <- as.factor(all_fluxes_resample$tag)
 # create unique ID for mounds in different sampling periods
 all_fluxes_resample$ID_mound <- paste(all_fluxes_resample$sample, all_fluxes_resample$campaign, sep = "-")
 
-# how many measurements were made for each mound in the resampling campaign (shoudl be 4 or 5)
-repeated_counts <- aggregate(all_fluxes_resample$tag , by=list(all_fluxes_resample$ID_mound ), FUN=length)
+# measurements per mound 
+measurements_per_mound <- aggregate(all_fluxes_resample$tag , by=list(all_fluxes_resample$ID_mound ), FUN=length)
+
+# measurements across all 4 campaigns 
+repeated_counts <- all_fluxes_resample %>%
+  group_by(sample) %>%
+    summarise(remeasurements = n_distinct(campaign), 
+              species = unique(species_s))
 
 # reorder levels of campaigns 
-all_fluxes_resample$campaign <- factor(all_fluxes_resample$campaign, levels = c("may22", "aug23", "nov22"))
+all_fluxes_resample$campaign <- factor(all_fluxes_resample$campaign, levels = c("may22", "aug23", "nov22", "feb24"))
 
 # create working df for coarse mound averages 
-detach(package:plyr)
 mound_avg_flux <- all_fluxes_resample %>% group_by(ID_mound, sample, species_s) %>% 
   summarise(mean_mound_fluxCH4=mean(flux.CH4),
             mean_mound_fluxCO2=mean(flux.CO2_umol), 
@@ -225,14 +244,19 @@ POV(flux.CH4 ~ campaign*ID_mound, Data = all_fluxes_resample, Complete=TRUE)
 
 ```
 
-
-
+average mound flux by species and season 
+```{r}
+avg <- all_fluxes_resample %>%
+  group_by(species_s, campaign) %>%
+  summarise(avg_CH4 = mean(flux.CH4, na.rm = TRUE), 
+            avg_CO2 = mean(flux.CO2, na.rm = TRUE))
+```
 
 
 Q1: mound flux by species
 ```{r flux}
 # overall CH4 flux from three different species
-s1 <- ggplot(data = all_fluxes_resample[all_fluxes_resample$flux_source =="m",], aes(x = species_s, y = flux.CH4, fill = species_s)) + 
+s1 <- ggplot(data = all_fluxes_resample[all_fluxes_resample$flux_source =="m",], aes(x = species_s, y = flux.CH4, fill = campaign)) + 
   geom_boxplot()+ 
   scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+  
   theme_classic()+
@@ -242,7 +266,7 @@ s1 <- ggplot(data = all_fluxes_resample[all_fluxes_resample$flux_source =="m",],
   theme(legend.position = "none")
 
 # overall CO2 flux from three different species
-s2 <- ggplot(data = all_fluxes_resample[all_fluxes_resample$flux_source =="m",], aes(x = species_s, y = flux.CO2, fill = species_s)) + 
+s2 <- ggplot(data = all_fluxes_resample[all_fluxes_resample$flux_source =="m",], aes(x = species_s, y = flux.CO2, fill = campaign)) + 
   geom_boxplot()+ 
   scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+  
   theme_classic()+
