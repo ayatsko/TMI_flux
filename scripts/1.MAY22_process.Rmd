@@ -21,7 +21,7 @@ library(gridExtra)
 May 2022 data load and prep (manually fixing dates due to internal time clock error)
 ```{r data prep}
 # all LGR files loading in
-dataTMI <- list.files(path ="/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/may22LGR", pattern='f00', full.names= T) %>%
+dataTMI <- list.files(path ="/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/LGR_files/may22LGR", pattern='f00', full.names= T) %>%
   setNames(nm = .) %>% 
   lapply(read.csv,skip=1) %>%
   bind_rows(.id = "file") %>%
@@ -31,7 +31,7 @@ dataTMI <- list.files(path ="/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/may2
 data_clean <- subset(dataTMI, X.CH4._ppm!="NA")
 
 # read in metadata to alter dates for each f#### file so that the fDOY makes sense 
-meta_TMI <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/TMI_flux_metadata_may22.csv")
+meta_TMI <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/LGR_metadata/TMI_flux_metadata_may22.csv")
 file <- unique(meta_TMI$file)
 file_years <- as.data.frame(file)
 
@@ -320,7 +320,7 @@ CH4_fluxfinal_may22 <- merge(fluxes.CH4_may, meta_TMI, by="Time_start")
 CH4_fluxfinal_may22$campaign <- "may22"
 
 # merge in species data to flux data 
-species <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/Abbey termites .xlsx - Sheet1.csv")
+species <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/supp_data/termite_ID.csv")
 species <- species[c("X", "ID_cleaned")]
 
 # merge sp and CH4flux_final, CO2_fluxfinal
@@ -332,10 +332,10 @@ CO2_fluxfinal_may22 <- merge(CO2_fluxfinal_may22, species, by = c("sample"))
 
 ## Export fluxes as .csv file
 # CO2 (units are mmol/day)
-# write.csv(CO2_fluxfinal_may22,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_may22.csv", row.names = FALSE)
+# write.csv(CO2_fluxfinal_may22,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/data_out/CO2_fluxfinal_may22.csv", row.names = FALSE)
 
 # CH4 (units are umol/day)
-# write.csv(CH4_fluxfinal_may22,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_may22.csv", row.names = FALSE)
+# write.csv(CH4_fluxfinal_may22,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/data_out/CH4_fluxfinal_may22.csv", row.names = FALSE)
 ```
 
 Preliminary visualization 
@@ -346,7 +346,7 @@ ggplot(CH4_fluxfinal_may22, aes(x = species, y = flux.CH4, color = species))+
   theme_classic()
 
 # add time of day for measurements using GPS record
-maytime <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/may_mound_measure_times.csv")
+maytime <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/supp_data/may_mound_measure_times.csv")
 maytime <- maytime[c("name", "realtime")]
 names(maytime)[1] <- 'sample'
 names(maytime)[2] <- 'flux_start_real'
@@ -426,9 +426,9 @@ CO2_fix <- function(target_CO2, CO2_fluxfinal_may22_fix, data_merge){
 # test
 out_CO2 <- sapply(seq_along(target_CO2), function(x) CO2_fix(target_CO2[[x]], CO2_fluxfinal_may22_fix, data_merge), USE.NAMES= TRUE, simplify = FALSE)
 
-ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCO2_may.pdf", 
-   plot = marrangeGrob(out_CO2, nrow=1, ncol=1), 
-   width = 15, height = 9)
+# ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCO2_may.pdf",
+#    plot = marrangeGrob(out_CO2, nrow=1, ncol=1),
+#    width = 15, height = 9)
 ```
 
 QC CH4
@@ -462,9 +462,9 @@ CH4_fix <- function(target_CH4, CH4_fluxfinal_may22_fix, data_merge){
 # test
 out_CH4 <- sapply(seq_along(target_CH4), function(x) CH4_fix(target_CH4[[x]], CH4_fluxfinal_may22_fix, data_merge), USE.NAMES= TRUE, simplify = FALSE)
 
-ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCH4_may.pdf", 
-   plot = marrangeGrob(out_CH4, nrow=1, ncol=1), 
-   width = 15, height = 9)
+# ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCH4_may_rep.pdf",
+#    plot = marrangeGrob(out_CH4, nrow=1, ncol=1),
+#    width = 15, height = 9)
 ```
 
 Fix QC flagged fluxes 
@@ -695,6 +695,3 @@ colnames(CO2_fluxfinal_may22_fixed)[colnames(CO2_fluxfinal_may22_fixed) == "flux
 # CH4 (units are umol/day)
 # write.csv(CH4_fluxfinal_may22_fixed,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_may22_fixed.csv", row.names = FALSE)
 ```
-
-
-

@@ -20,7 +20,7 @@ library(gridExtra)
 Nov 2022 data load and prep
 ```{r}
 # workplace setup 
-setwd("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/nov22LGR")
+setwd("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/LGR_files/nov22LGR")
 filenames <- list.files(pattern='f000',full.names=T)
 
 # read in LGR datafiles to list and go from .txt to .csv 
@@ -41,6 +41,7 @@ Hour <- as.numeric(format(date_time,'%k'))
 Min <- as.numeric(format(date_time,'%M'))
 Sec <- as.numeric(format(date_time,'%S'))
 data_clean2 <- cbind(date_time,Year,Month,Day,fDOY,Hour,Min,Sec,data_s)
+
 # save LGR data as dt
 data_clean2 <- data.table(data_clean2)
 ```
@@ -63,7 +64,7 @@ ch4 <- ggplot(data_clean2, aes(date_time, X.CH4.d_ppm)) +
 Merge with metadata
 ```{r}
 # read in file with metadata
-meta_TMI2 <- read.csv('/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/TMI_flux_metadata_nov22.csv')
+meta_TMI2 <- read.csv('/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/LGR_metadata/TMI_flux_metadata_nov22.csv')
 
 as.Date(meta_TMI2$measurement_day_actual, '%m/%d/%Y')
 ```
@@ -258,7 +259,7 @@ CH4_fluxfinal_nov22 <- merge(fluxes.CH4_nov, meta_TMI2, by="Time_start")
 CH4_fluxfinal_nov22$campaign <- "nov22"
 
 # merge in species data to flux data 
-species <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/Abbey termites .xlsx - Sheet1.csv")
+species <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/supp_data/termite_ID.csv")
 species <- species[c("X", "ID_cleaned")]
 
 # merge sp and CH4flux_final, CO2_fluxfinal
@@ -270,10 +271,10 @@ CO2_fluxfinal_nov22 <- merge(CO2_fluxfinal_nov22, species, by = c("sample"))
 
 ## Export fluxes as .csv file
 # CO2 (units are mmol/day)
-# write.csv(CO2_fluxfinal_nov22,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_nov22.csv", row.names = FALSE)
+# write.csv(CO2_fluxfinal_nov22,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/data_out/CO2_fluxfinal_nov22.csv", row.names = FALSE)
 
 # CH4 (units are umol/day)
-# write.csv(CH4_fluxfinal_nov22,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_nov22.csv", row.names = FALSE)
+# write.csv(CH4_fluxfinal_nov22,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/data_out/CH4_fluxfinal_nov22.csv", row.names = FALSE)
 ```
 
 Preliminary visualization 
@@ -352,9 +353,9 @@ CO2_fix <- function(target_CO2, CO2_fluxfinal_nov22_fix, data_merge2){
 # test
 out_CO2 <- sapply(seq_along(target_CO2), function(x) CO2_fix(target_CO2[[x]], CO2_fluxfinal_nov22_fix, data_merge2), USE.NAMES= TRUE, simplify = FALSE)
 
-ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCO2_nov.pdf", 
-   plot = marrangeGrob(out_CO2, nrow=1, ncol=1), 
-   width = 15, height = 9)
+# ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCO2_nov.pdf", 
+#    plot = marrangeGrob(out_CO2, nrow=1, ncol=1), 
+#    width = 15, height = 9)
 ```
 
 QC CH4
@@ -388,9 +389,9 @@ CH4_fix <- function(target_CH4, CH4_fluxfinal_nov22_fix, data_merge2){
 # test
 out_CH4 <- sapply(seq_along(target_CH4), function(x) CH4_fix(target_CH4[[x]], CH4_fluxfinal_nov22_fix, data_merge2), USE.NAMES= TRUE, simplify = FALSE)
 
-ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCH4_nov.pdf", 
-   plot = marrangeGrob(out_CH4, nrow=1, ncol=1), 
-   width = 15, height = 9)
+# ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCH4_nov.pdf", 
+#    plot = marrangeGrob(out_CH4, nrow=1, ncol=1), 
+#    width = 15, height = 9)
 ```
 
 Fix QC flagged fluxes 
@@ -479,6 +480,7 @@ fluxes.CH4_nov_fix[1,]$p.CH4=summary(mod)$coefficients[2,4]
 
 # fixed2: MD55-6
 mod <- lm(CH4_dry_umol~fDOY, data = fixed2)
+
 # Save flux rate and R2 and p-value of slope in corresponding row of dataframe
 fluxes.CH4_nov_fix[2,]$Time_start <- as.numeric(min(fixed2$fDOY))
 fluxes.CH4_nov_fix[2,]$flux.CH4=unique(coef(mod)[2]/fixed2$chamber_SA_m2) # chamber surface area
@@ -561,4 +563,3 @@ ggplot(CH4_fluxfinal_nov22_fixed, aes(R2.CH4))+
 # CH4 (units are umol/day)
 # write.csv(CH4_fluxfinal_nov22_fixed,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_nov22_fixed.csv", row.names = FALSE)
 ```
-
