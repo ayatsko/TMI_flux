@@ -135,6 +135,17 @@ all_fluxes_mound_avg <- all_fluxes_mound %>% group_by(ID_mound, sample, species_
             campaign = campaign)
 all_fluxes_mound_avg <- distinct(all_fluxes_mound_avg)
 
+# merge with mound SA
+mound_SA <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/supp_data/mound_SA.csv")
+mound_SA <- mound_SA[, c('sample', 'SA_m2', 'basal_area_m2')]
+mound_SA <- mound_SA[!is.na(mound_SA$SA_m2),]
+all_fluxes_mound_avg <- merge(all_fluxes_mound_avg, mound_SA, by = "sample")
+
+# calculate mound-level flux
+all_fluxes_mound_avg$mound_CH4flux <- all_fluxes_mound_avg$mean_mound_fluxCH4 * all_fluxes_mound_avg$SA_m2
+all_fluxes_mound_avg$mound_CO2flux <- all_fluxes_mound_avg$mean_mound_fluxCO2 * all_fluxes_mound_avg$SA_m2
+# in units of gas per time for the whole mound structure
+
 # EXPORT - coarse average mound fluxes
 # write.csv(all_fluxes_mound_avg, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound_avg.csv", row.names = FALSE)
 ```
