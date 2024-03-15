@@ -19,7 +19,7 @@ library(plyr)
 Feb 2024 data load and prep
 ```{r}
 # workplace setup 
-setwd("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/feb24LGR")
+setwd("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/LGR_files/feb24LGR")
 filenames <- list.files(pattern='f00',full.names=T)
 
 # read in LGR datafiles to list and go from .txt to .csv 
@@ -63,7 +63,7 @@ ch4 <- ggplot(data_clean4, aes(date_time, X.CH4.d_ppm)) +
 Merge with metadata
 ```{r}
 # read in file with metadata
-meta_TMI4 <- read.csv('/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/TMI_flux_metadata_feb.csv')
+meta_TMI4 <- read.csv('/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/LGR_metadata/TMI_flux_metadata_feb.csv')
 
 as.Date(meta_TMI4$measurement_day_actual, '%m/%d/%Y')
 ```
@@ -107,13 +107,13 @@ from data_clean4 LEFT JOIN meta_TMI4 ON (data_clean4.fDOY BETWEEN meta_TMI4.fDOY
 # use 'complete.cases'
 data_merge4 <- data_merge4[complete.cases(data_merge4), ]
 
-# check to make sure all of the samples are there (24 total)
+# check to make sure all of the samples are there (23 total)
 summary(unique(data_merge4$sample))
 ```
 
 Visually check clipped bits of data 
 ```{r}
-# co2 (xlim=c(218.4554, 218.4622) corresponds to only MD36 first file) #change for actual data 
+# co2 
 par(mfrow=c(2,1),mar=c(4,4,1,1))
 with(data_clean4,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(56.41250, 57.543)))
 with(data_merge4,plot(fDOY,CO2_dry,ylim=c(400,1300), xlim=c(56.41250, 57.543)))
@@ -257,12 +257,43 @@ CO2_fluxfinal_feb24$campaign <- "feb24"
 CH4_fluxfinal_feb24 <- merge(fluxes.CH4_feb, meta_TMI4, by="Time_start")
 CH4_fluxfinal_feb24$campaign <- "feb24"
 
+# merge in species data to flux data 
+species <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/supp_data/termite_ID.csv")
+species <- species[c("X", "ID_cleaned")]
+
+# merge sp and CH4flux_final, CO2_fluxfinal
+colnames(species)[1] = "sample"
+colnames(species)[2] = "species"
+
+CH4_fluxfinal_feb24 <- merge(CH4_fluxfinal_feb24, species, by = c("sample")) 
+CO2_fluxfinal_feb24 <- merge(CO2_fluxfinal_feb24, species, by = c("sample")) 
+
 ## Export fluxes as .csv file
 # CO2 (units are mmol/day)
-# write.csv(CO2_fluxfinal_feb24,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_feb24.csv", row.names = FALSE)
+# write.csv(CO2_fluxfinal_feb24,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/data_out/CO2_fluxfinal_feb24.csv", row.names = FALSE)
 
 # CH4 (units are umol/day)
-# write.csv(CH4_fluxfinal_feb24,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_feb24.csv", row.names = FALSE)
+# write.csv(CH4_fluxfinal_feb24,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/data_out/CH4_fluxfinal_feb24.csv", row.names = FALSE)
+```
+
+Preliminary visualization 
+```{r}
+# differences among species
+ggplot(CH4_fluxfinal_feb24, aes(x = species, y = flux.CH4, color = species))+
+  geom_boxplot()+
+  theme_classic()
+
+# temperature throughout the day 
+CH4_fluxfinal_feb24$flux_start <- as.POSIXct(CH4_fluxfinal_feb24$flux_start, format = "%H:%M:%S")
+
+ggplot(CH4_fluxfinal_feb24, aes(x = flux_start, y = avg_respT))+
+  geom_point()+
+  theme_classic()
+
+# flux and temperature relationship 
+ggplot(CH4_fluxfinal_feb24, aes(x = avg_respT, y = flux.CH4))+
+  geom_point()+
+  theme_classic()
 ```
 
 QC check for all measurements
@@ -279,45 +310,99 @@ mean(CH4_fluxfinal_feb24$R2.CH4)
 ggplot(CH4_fluxfinal_feb24, aes(R2.CH4))+
   geom_histogram()+
   theme_classic()
+
+# check p values
+table(CO2_fluxfinal_feb24$p.CO2<0.05)
+table(CH4_fluxfinal_feb24$p.CH4<0.05)
+
+# extract everything with R2 < 0.4
+CO2_fluxfinal_feb24_fix <- CO2_fluxfinal_feb24[CO2_fluxfinal_feb24$R2.CO2 < 0.4,]
+CH4_fluxfinal_feb24_fix <- CH4_fluxfinal_feb24[CH4_fluxfinal_feb24$R2.CH4 < 0.4,]
 ```
 
-prelim viz 
+QC CO2 (not needed if R2 is < 0.4)
 ```{r}
-# merge in species data to flux data 
-species <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/Abbey termites .xlsx - Sheet1.csv")
-species <- species[c("X", "ID_cleaned")]
+# list of ID names by unique sample measurement (by creating sample-tag)
+CO2_fluxfinal_feb24_fix$ID_measurement <- paste(CO2_fluxfinal_feb24_fix$sample, CO2_fluxfinal_feb24_fix$tag, sep = "-")
+data_merge4$ID_measurement <- paste(data_merge4$sample, data_merge4$tag, sep = "-")
+target_CO2 <- as.list(CO2_fluxfinal_feb24_fix$ID_measurement)
 
-# merge sp and CH4flux_final, CO2_fluxfinal
-colnames(species)[1] = "sample"
-colnames(species)[2] = "species"
+# function to troubleshoot and visualize low correlation fluxes 
+CO2_fix <- function(target_CO2, CO2_fluxfinal_feb24_fix, data_merge4){
+  # select first ID name in list 
+  target_ID <- target_CO2[1]
+ 
+  # in fix file, set Time_start and fDOY_end as xlim_lower and xlim_upper 
+  working <- CO2_fluxfinal_feb24_fix[CO2_fluxfinal_feb24_fix$ID_measurement == target_ID,]
+  records <- data_merge4[data_merge4$ID_measurement == target_ID,]
+  xlim_lower <- working$Time_start
+  xlim_upper <- working$fDOY_end
+  ylim_lower <- min(records$CO2_dry) - 5
+  ylim_upper <- max(records$CO2_dry) + 5
+  
+  # plot and label with sample ID name - add to PDF where all are compiled
+  ggplot(data_merge4, aes(x = fDOY, y = CO2_dry))+
+    geom_point()+
+    theme_classic()+
+    xlim(xlim_lower, xlim_upper)+
+    ylim(ylim_lower, ylim_upper)+
+    ggtitle(target_ID)
+}
 
-CH4_fluxfinal_feb24 <- merge(CH4_fluxfinal_feb24, species, by = c("sample")) 
-CO2_fluxfinal_feb24 <- merge(CO2_fluxfinal_feb24, species, by = c("sample")) 
+# test
+out_CO2 <- sapply(seq_along(target_CO2), function(x) CO2_fix(target_CO2[[x]], CO2_fluxfinal_feb24_fix, data_merge4), USE.NAMES= TRUE, simplify = FALSE)
 
-# differences among species
-ggplot(CH4_fluxfinal_feb24, aes(x = species, y = flux.CH4, color = species))+
-  geom_boxplot()+
-  theme_classic()
-
-# temperature throughout the day 
-CH4_fluxfinal_feb24$flux_start <- as.POSIXct(CH4_fluxfinal_feb24$flux_start, format = "%H:%M:%S")
-
-ggplot(CH4_fluxfinal_feb24, aes(x = flux_start, y = avg_respT))+
-  geom_point()+
-  theme_classic()
-
-# flux and temperature relationship 
-ggplot(CH4_fluxfinal_feb24, aes(x = avg_respT, y = flux.CH4, color = species))+
-  geom_point()+
-  theme_classic() 
-
-# average mound flux by species and season 
-avg_feb_CH4 <- CH4_fluxfinal_feb24 %>%
-  group_by(species) %>%
-  summarise(avg_CH4 = mean(flux.CH4, na.rm = TRUE))
-
-avg_feb_CO2 <- CO2_fluxfinal_feb24 %>%
-  group_by(species) %>%
-  summarise(avg_CO2 = mean(flux.CO2, na.rm = TRUE))
+# ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCO2_feb.pdf",
+#    plot = marrangeGrob(out_CO2, nrow=1, ncol=1),
+#    width = 15, height = 9)
 ```
 
+QC CH4
+```{r}
+# list of ID names by unique sample measurement (by creating sample-tag)
+CH4_fluxfinal_feb24_fix$ID_measurement <- paste(CH4_fluxfinal_feb24_fix$sample, CH4_fluxfinal_feb24_fix$tag, sep = "-")
+data_merge4$ID_measurement <- paste(data_merge4$sample, data_merge4$tag, sep = "-")
+target_CH4 <- as.list(CH4_fluxfinal_feb24_fix$ID_measurement)
+
+# function to troubleshoot and visualize low correlation fluxes 
+CH4_fix <- function(target_CH4, CH4_fluxfinal_feb24_fix, data_merge4){
+  # select first ID name in list 
+  target_ID <- target_CH4[1]
+ 
+  # in fix file, set Time_start and fDOY_end as xlim_lower and xlim_upper 
+  working <- CH4_fluxfinal_feb24_fix[CH4_fluxfinal_feb24_fix$ID_measurement == target_ID,]
+  records <- data_merge4[data_merge4$ID_measurement == target_ID,]
+  xlim_lower <- working$Time_start
+  xlim_upper <- working$fDOY_end
+  ylim_lower <- min(records$CH4_dry) - .1
+  ylim_upper <- max(records$CH4_dry) + .1
+  
+  # plot and label with sample ID name - add to PDF where all are compiled
+  ggplot(data_merge4, aes(x = fDOY, y = CH4_dry))+
+    geom_point()+
+    theme_classic()+
+    xlim(xlim_lower, xlim_upper)+
+    ylim(ylim_lower, ylim_upper)+
+    ggtitle(target_ID)
+}
+
+# test
+out_CH4 <- sapply(seq_along(target_CH4), function(x) CH4_fix(target_CH4[[x]], CH4_fluxfinal_feb24_fix, data_merge4), USE.NAMES= TRUE, simplify = FALSE)
+
+# ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCH4_feb.pdf",
+#    plot = marrangeGrob(out_CH4, nrow=1, ncol=1),
+#    width = 15, height = 9)
+```
+
+2 CO2 files to potentially fix
+15 CH4 files which are fine
+
+nothing to fix - export files
+```{r}
+## Export fluxes as .csv file
+# CO2 (units are mmol/day)
+# write.csv(CO2_fluxfinal_feb24,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_feb24_fixed.csv", row.names = FALSE)
+
+# CH4 (units are umol/day)
+# write.csv(CH4_fluxfinal_feb24,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_feb24_fixed.csv", row.names = FALSE)
+```
