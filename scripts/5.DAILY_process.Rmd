@@ -23,7 +23,7 @@ library(respirometry)
 
 Aug 2023 data load and prep
 ```{r}
-setwd("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/aug23LGR_daily")
+setwd("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/LGR_files/aug23LGR_daily")
 filenames <- list.files(pattern='f00',full.names=T)
 
 # read in LGR datafiles to list and go from .txt to .csv 
@@ -65,7 +65,7 @@ ch4 <- ggplot(data_clean_day, aes(date_time, X.CH4.d_ppm)) +
 
 Merge with metadata
 ```{r}
-meta_TMI_day <- read.csv('/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/TMI_flux_metadata_aug_daily.csv')
+meta_TMI_day <- read.csv('/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/LGR_metadata/TMI_flux_metadata_aug_daily.csv')
 
 as.Date(meta_TMI_day$measurement_day_actual, '%m/%d/%Y')
 ```
@@ -260,7 +260,7 @@ CH4_fluxfinal_aug23_day <- merge(fluxes.CH4_aug, meta_TMI_day, by="Time_start")
 CH4_fluxfinal_aug23_day$campaign <- "aug23"
 
 # merge in species data to flux data 
-species <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/daily_species.csv")
+species <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/supp_data/daily_species.csv")
 species <- species[c("X", "ID_cleaned")]
 
 # merge sp and CH4flux_final, CO2_fluxfinal
@@ -272,10 +272,10 @@ CO2_fluxfinal_aug23_day <- merge(CO2_fluxfinal_aug23_day, species, by = c("sampl
 
 ## Export fluxes as .csv file
 # CO2 (units are mmol/day)
-# write.csv(CO2_fluxfinal_aug23_day,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_aug23_day.csv", row.names = FALSE)
+# write.csv(CO2_fluxfinal_aug23_day,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/data_out/CO2_fluxfinal_aug23_day.csv", row.names = FALSE)
 
 # CH4 (units are umol/day)
-# write.csv(CH4_fluxfinal_aug23_day,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_day.csv", row.names = FALSE)
+# write.csv(CH4_fluxfinal_aug23_day,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/data_out/CH4_fluxfinal_aug23_day.csv", row.names = FALSE)
 ```
 
 QC check for all measurements
@@ -334,9 +334,9 @@ CO2_fix <- function(target_CO2, CO2_fluxfinal_aug23_fix, data_merge_day){
 # test
 out_CO2 <- sapply(seq_along(target_CO2), function(x) CO2_fix(target_CO2[[x]], CO2_fluxfinal_aug23_fix, data_merge_day), USE.NAMES= TRUE, simplify = FALSE)
 
-ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCO2_aug_day.pdf", 
-   plot = marrangeGrob(out_CO2, nrow=1, ncol=1), 
-   width = 15, height = 9)
+# ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCO2_aug_day.pdf", 
+#    plot = marrangeGrob(out_CO2, nrow=1, ncol=1), 
+#    width = 15, height = 9)
 ```
 
 QC CH4
@@ -370,9 +370,9 @@ CH4_fix <- function(target_CH4, CH4_fluxfinal_aug23_fix, data_merge_day){
 # test
 out_CH4 <- sapply(seq_along(target_CH4), function(x) CH4_fix(target_CH4[[x]], CH4_fluxfinal_aug23_fix, data_merge_day), USE.NAMES= TRUE, simplify = FALSE)
 
-ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCH4_aug_day.pdf", 
-   plot = marrangeGrob(out_CH4, nrow=1, ncol=1), 
-   width = 15, height = 9)
+# ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCH4_aug_day.pdf", 
+#    plot = marrangeGrob(out_CH4, nrow=1, ncol=1), 
+#    width = 15, height = 9)
 ```
 
 Fix QC flagged fluxes 
@@ -542,76 +542,6 @@ ggplot(CH4_fluxfinal_aug23_day_fixed, aes(R2.CH4))+
 
 # CH4 (units are umol/day)
 # write.csv(CH4_fluxfinal_aug23_day_fixed,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_day_fixed", row.names = FALSE)
-```
-
-initial vis 
-
-Preliminary visualization 
-```{r}
-# read in data 
-# CO2 (units are mmol/day)
-CO2_day <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_aug23_day_fixed.csv")
-
-# CH4 (units are umol/day)
-CH4_day <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_day_fixed")
-
-# reorder time of day categorical variable 
-desired_order <- c("morning", "midday", "afternoon", "night")
-
-# Re-order the levels
-CH4_day$time_of_day <- factor(as.character(CH4_day$time_of_day), levels=desired_order )
-CO2_day$time_of_day <- factor(as.character(CO2_day$time_of_day), levels=desired_order )
-
-# Re-order the data.frame
-CH4_day <- CH4_day[order(CH4_day$time_of_day),]
-CO2_day <- CO2_day[order(CO2_day$time_of_day),]
-```
-
-Diurnal signal
-```{r}
-d1 <- ggplot(CO2_day, aes(x = time_of_day, y = flux.CO2, fill = time_of_day))+
-  geom_boxplot()+
-  geom_point()+
-  theme_classic()+
-  theme(legend.position="none")+
-  xlab("")+
-  ylab("CO2 flux")
-
-# with species split out
-d2 <- ggplot(CO2_day, aes(x = time_of_day, y = flux.CO2, fill = time_of_day))+
-  geom_boxplot()+
-  geom_point()+
-  theme_classic()+
-  theme(legend.position="none")+
-  xlab("")+
-  ylab("CO2 flux")+
-  facet_wrap(~species, scales = "free")+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-ggarrange(d1,d2)
-```
-
-Temperature signal 
-```{r}
-# temperature thoughout daily cycle 
-d3 <- ggplot(CH4_day, aes(x = avg_respT, y = flux.CH4))+
-  geom_point()+
-  geom_smooth()+
-  theme_classic()+
-  theme(legend.position="none")+ 
-  xlab("Temperature (C)")+
-  ylab("CH4 flux")
-
-d4 <- ggplot(CH4_day, aes(x = avg_respT, y = flux.CH4))+
-  geom_point()+
-  geom_smooth()+
-  theme_classic()+
-  theme(legend.position="none")+
-  facet_wrap(~species, scales = "free")+
-  xlab("Temperature (C)")+
-  ylab("CH4 flux")
-
-ggarrange(d3, d4)
 ```
 
 Draft models for predictor of daily variation in fluxes 

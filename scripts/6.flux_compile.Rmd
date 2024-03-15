@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 libraries
 ```{r}
+library(plyr)
 
 ```
 
@@ -65,33 +66,44 @@ all_fluxes$species_s <- ifelse(all_fluxes$species == "Ami", "A. laurensis","")
 all_fluxes$species_s <- ifelse(all_fluxes$species == "Nasuti", "N. magnus", all_fluxes$species_s)
 all_fluxes$species_s <- ifelse(all_fluxes$species == "Copto", "C. acinaciformis", all_fluxes$species_s)
 
+# create unique ID for mounds in different sampling periods
+all_fluxes$ID_mound <- paste(all_fluxes$sample, all_fluxes$campaign, sep = "-")
+
 # filter out measurements without species recorded
 all_fluxes <- all_fluxes %>%
   filter(species_s != "")
 
 # EXPORT - all fluxes
-# write.csv(all_fluxes, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes.csv")
+# write.csv(all_fluxes, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes.csv", row.names = FALSE)
 
 # EXPORT - mound-only fluxes
 all_fluxes_mound <- all_fluxes[all_fluxes$flux_source =="m",]
-# write.csv(all_fluxes_mound, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound.csv")
+# write.csv(all_fluxes_mound, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound.csv", row.names = FALSE)
 
 # EXPORT - soil-only fluxes
 all_fluxes_soil <- all_fluxes[all_fluxes$flux_source =="s",]
-# write.csv(all_fluxes_soil, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_soil.csv")
+# write.csv(all_fluxes_soil, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_soil.csv", row.names = FALSE)
 ```
 
-## WORKING HERE ##
 data summary from compiled list 
 ```{r}
+# reorder levels of campaigns 
+all_fluxes$campaign <- factor(all_fluxes$campaign, levels = c("may22", "aug23", "nov22", "feb24"))
+
 # summary of how mounds were measured for each campaign
 detach(package:plyr)
 summary_counts <- all_fluxes %>%
   group_by(campaign, species_s) %>%
     summarise(unique_samples = n_distinct(sample))
 
-# how many measurements were made for each mound in the resampling campaign (shoudl be 4 or 5)
-# filter out those that are not revisited by the resampling campaigns 
+# measurements per mound 
+measurements_per_mound <- aggregate(all_fluxes$tag , by=list(all_fluxes$ID_mound ), FUN=length)
+
+measurements_per_mound <- measurements_per_mound %>%
+  rename(ID_mound = Group.1,
+         count = x)
+
+# how many measurements were made for each mound in the resampling campaign (should be 4 or 5)
 targets1 <- unique(nov_CH4$sample)
 targets2 <- unique(aug_CH4$sample)
 targets3 <- unique(feb_CH4$sample)
@@ -100,25 +112,58 @@ targets_fin <- union(targets, targets3)
 
 all_fluxes_resample <- all_fluxes[all_fluxes$sample %in% targets_fin, ]
 
-# create unique ID for mounds in different sampling periods
-all_fluxes_resample$ID_mound <- paste(all_fluxes_resample$sample, all_fluxes_resample$campaign, sep = "-")
-
-# measurements per mound 
-measurements_per_mound <- aggregate(all_fluxes_resample$tag , by=list(all_fluxes_resample$ID_mound ), FUN=length)
-
 # measurements across all 4 campaigns 
-repeated_counts <- all_fluxes_resample %>%
+resample_repeats <- all_fluxes_resample %>%
   group_by(sample) %>%
-    summarise(remeasurements = n_distinct(campaign), 
+    summarise(repeats = n_distinct(campaign), 
               species = unique(species_s))
 
-# reorder levels of campaigns 
-all_fluxes_resample$campaign <- factor(all_fluxes_resample$campaign, levels = c("may22", "aug23", "nov22", "feb24"))
+# filter out mounds with fewer than 4 time points 
+seasonal_list <- resample_repeats[resample_repeats$repeats>3,]
+seasonal_list <- seasonal_list$sample
 
-# create working df for coarse mound averages 
-mound_avg_flux <- all_fluxes_resample %>% group_by(ID_mound, sample, species_s) %>% 
+all_fluxes_resample_reps <- all_fluxes_resample[all_fluxes_resample$sample %in% seasonal_list,]
+
+# EXPORT - seasonal resampled fluxes
+# write.csv(all_fluxes_resample_reps, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_resample_reps.csv", row.names = FALSE)
+
+# working df for coarse mound averages 
+all_fluxes_mound_avg <- all_fluxes_mound %>% group_by(ID_mound, sample, species_s) %>% 
   summarise(mean_mound_fluxCH4=mean(flux.CH4),
             mean_mound_fluxCO2=mean(flux.CO2_umol), 
             mean_mound_fluxCH4_CO2=mean(CH4_CO2), 
             campaign = campaign)
+all_fluxes_mound_avg <- distinct(all_fluxes_mound_avg)
+
+# EXPORT - coarse average mound fluxes
+# write.csv(all_fluxes_mound_avg, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound_avg.csv", row.names = FALSE)
+```
+
+compilation of daily dataset
+```{r}
+# lists of CO2 and CH4 files from different seasons
+CH4_daily <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_day_fixed.csv")
+CO2_daily <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_aug23_day_fixed.csv")
+
+# merge CO2 and CH4 df together 
+all <- full_join(CO2_daily, CH4_daily)
+
+# convert CO2 from mmol to umol (in order to match CH4 units, conversion factor 1000umol = 1mmol)
+all$flux.CO2_umol <- all$flux.CO2*1000
+all <- all %>% relocate(flux.CO2_umol, .after = flux.CO2)
+all <- all %>% relocate(flux.CH4, .after = flux.CO2_umol)
+all <- all %>% relocate(R2.CH4, .after = R2.CO2)
+all <- all %>% relocate(p.CH4, .after = p.CO2)
+  
+# define column for ratio of CH4:CO2
+all$CH4_CO2 <-  all$flux.CH4/all$flux.CO2_umol
+daily_fluxes <- all %>% relocate(CH4_CO2, .after = flux.CH4)
+
+# rename species with scientific names 
+daily_fluxes$species_s <- ifelse(daily_fluxes$species == "Ami", "A. laurensis","")
+daily_fluxes$species_s <- ifelse(daily_fluxes$species == "Nasuti", "N. magnus", daily_fluxes$species_s)
+daily_fluxes$species_s <- ifelse(daily_fluxes$species == "Copto", "C. acinaciformis", daily_fluxes$species_s)
+
+# EXPORT - compiled daily fluxes
+# write.csv(daily_fluxes, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_daily_fluxes.csv", row.names = FALSE)
 ```
