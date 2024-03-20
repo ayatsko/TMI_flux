@@ -235,6 +235,70 @@ flux_summary <- flux_summary %>%
   mutate(emission_factor = ifelse(material == "T", flux.CH4 / mass_termite_g, NA))
 ```
 
+preliminary viz 
+```{r}
+# remove first two coptotermes mounds NT07-09, NT10-12, NT0811TERM, 
+rm <- c("NT0811TERM", "NT07", "NT08", "NT09", "NT10", "NT11", "NT12")
+df_filtered <- subset(flux_summary, !ID %in% rm)
+
+# emission factor
+ggplot(df_filtered, aes(x = species, y = emission_factor, fill = species))+
+  geom_boxplot()+
+  geom_jitter()+
+  theme_classic()+
+  theme(legend.position = "none")
+
+# flux by material 
+meth <- ggplot(df_filtered, aes(x = species, y = flux.CH4, fill = material))+
+  geom_boxplot()+
+  geom_jitter()+
+  theme_classic()+
+  xlab("")
+
+co2 <- ggplot(df_filtered, aes(x = species, y = flux.CO2, fill = material))+
+  geom_boxplot()+
+  geom_jitter()+
+  theme_classic()+
+  xlab("")
+
+ggarrange(meth, co2, common.legend = TRUE)
+```
+
+open questions 
+```{r}
+# how much methane is oxidized
+meth_ox <- df_filtered %>%
+  group_by(chunk) %>%
+  mutate(all = ifelse(material == "A", flux.CH4, NA), 
+         termite = ifelse(material == "T", flux.CH4, NA)) 
+
+out <- meth_ox[c("chunk", "species", "all", "termite")]
+
+compiled_meth_ox <- out %>%
+  group_by(chunk) %>%
+  summarize_all(funs(trimws(paste(unique(na.omit(.)), collapse = ", ")))) %>%
+  ungroup()
+
+compiled_meth_ox$all <- as.numeric(compiled_meth_ox$all)
+compiled_meth_ox$termite <- as.numeric(compiled_meth_ox$termite)
+
+compiled_meth_ox$prop_ox <- (compiled_meth_ox$termite - compiled_meth_ox$all) / compiled_meth_ox$termite
+ggplot(compiled_meth_ox, aes(x = species, y = prop_ox, fill = species))+
+  geom_boxplot()+
+  geom_jitter()+
+  theme_classic()+
+  xlab("")+
+  theme(legend.position = "none")
+
+# test if these values are significantly different from zero? 
+
+# species means 
+detach(package:plyr)
+species_mean_ox <- compiled_meth_ox %>%
+  group_by(species) %>%
+  summarize(mean_ox = mean(prop_ox, na.rm = TRUE))
+```
+
 ## WORKING HERE ## 
 ALL QC CHECKS 
 

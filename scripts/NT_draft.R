@@ -2,7 +2,7 @@
 # naked termite feb 
 ####################
 # workspace 
-setwd("/Users/abbeyyatsko/Desktop/NT/LGR_files")
+setwd("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/NT/LGR_files")
 filenames <- list.files(pattern='f000',full.names=T)
 
 library(data.table)
@@ -43,7 +43,7 @@ ggplot(data_clean, aes(date_time, X.CH4.d_ppm)) +
 # plotly_code <- ggplotly(samp)
 
 # merge with metadata
-meta_TMI <- read.csv('/Users/abbeyyatsko/Desktop/NT/arduino_files/NTmetadata.csv')
+meta_TMI <- read.csv('/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/NT/arduino_files/NTmetadata.csv')
 as.Date(meta_TMI$measurement_day, '%m/%d/%Y')
 
 # define start time
@@ -226,11 +226,13 @@ ggplot(df_filtered, aes(x = species, y = emission_factor, fill = species))+
 meth <- ggplot(df_filtered, aes(x = species, y = flux.CH4, fill = material))+
   geom_boxplot()+
   geom_jitter()+
-  theme_classic()
+  theme_classic()+
+  xlab("")
 
 co2 <- ggplot(df_filtered, aes(x = species, y = flux.CO2, fill = material))+
   geom_boxplot()+
   geom_jitter()+
-  theme_classic()
+  theme_classic()+
+  xlab("")
 
 ggarrange(meth, co2, common.legend = TRUE)

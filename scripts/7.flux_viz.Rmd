@@ -109,7 +109,7 @@ s3 <- ggplot(data = all_fluxes_mound, aes(x = species_s, y = CH4_CO2, fill = cam
   ylim(0,0.06)+ # removes big outlier
   xlab("")
 
-ggarrange(s1,s2,s3, ncol = 3, common.legend = TRUE)
+ggarrange(s1,s2, ncol = 2, common.legend = TRUE)
 ```
 
 mound flux and temperature
