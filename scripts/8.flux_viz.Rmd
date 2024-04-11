@@ -21,7 +21,9 @@ all_fluxes <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalflux
 all_fluxes_mound <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound.csv")
 # all fluxes - soil 
 all_fluxes_soil <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_soil.csv")
-# all fluxes - seasonal 
+# all fluxes - seasonal with replication, as a mound average
+all_fluxes_seasonal_avg <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_resample_reps_avg.csv")
+# all fluxes - seasonal with replication
 all_fluxes_seasonal <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_resample_reps.csv")
 # all fluxes - daily 
 all_fluxes_daily <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_daily_fluxes.csv")
@@ -77,13 +79,10 @@ sp_avg <- all_fluxes_mound %>% group_by(species_s) %>%
 mound flux and season
 ```{r}
 # reorder levels of campaigns 
-all_fluxes_seasonal$campaign <- factor(all_fluxes_seasonal$campaign, levels = c("may22", "aug23", "nov22", "feb24"))
-
-# select for mound data only
-all_fluxes_seasonal_mound <- all_fluxes_seasonal[all_fluxes_seasonal$flux_source =="m",]
+all_fluxes_seasonal_avg$campaign <- factor(all_fluxes_seasonal_avg$campaign, levels = c("may22", "aug23", "nov22", "feb24"))
 
 # CH4 flux 
-s1 <- ggplot(data = all_fluxes_seasonal_mound, aes(x = species_s, y = flux.CH4, fill = campaign)) + 
+s1 <- ggplot(all_fluxes_seasonal_avg, aes(x = species_s, y = mean_mound_fluxCH4, fill = campaign)) + 
   geom_boxplot()+ 
   scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+  
   theme_classic()+
@@ -92,16 +91,15 @@ s1 <- ggplot(data = all_fluxes_seasonal_mound, aes(x = species_s, y = flux.CH4, 
   xlab("")
 
 # CO2 flux 
-s2 <- ggplot(data = all_fluxes_seasonal_mound, aes(x = species_s, y = flux.CO2, fill = campaign)) + 
+s2 <- ggplot(data = all_fluxes_seasonal_avg, aes(x = species_s, y = mean_mound_fluxCO2, fill = campaign)) + 
   geom_boxplot()+ 
   scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+  
   theme_classic()+
-  ylim(0,4833) + # removes negative outlier
   ylab("CO2 flux mmol/d/m2")+
   xlab("")
 
 # overall CH4:CO2 from three different species
-s3 <- ggplot(data = all_fluxes_mound, aes(x = species_s, y = CH4_CO2, fill = campaign)) + 
+s3 <- ggplot(data = all_fluxes_seasonal_avg, aes(x = species_s, y = mean_mound_fluxCH4_CO2, fill = campaign)) + 
   geom_boxplot()+ 
   scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+  
   theme_classic()+
@@ -115,15 +113,15 @@ ggarrange(s1,s2, ncol = 2, common.legend = TRUE)
 mound flux and temperature
 ```{r}
 # mound flux and temperature
-t1 <- ggplot(all_fluxes_seasonal_mound, aes(x = avg_respT, y = log(flux.CH4), color = campaign))+
+t1 <- ggplot(all_fluxes_seasonal_avg, aes(x = temp, y = log(mean_mound_fluxCH4), color = campaign))+
   geom_smooth(method = 'lm', se = TRUE)+
   geom_point()+
   ylab("CH4 flux umol/d/m2")+
   xlab("Average Mound Surface Temperature (C)")+
   theme_classic()
 
-t2 <- ggplot(all_fluxes_seasonal_mound, aes(x = avg_respT, y = flux.CO2, color = campaign))+
-  geom_smooth(method = 'auto', se = TRUE)+
+t2 <- ggplot(all_fluxes_seasonal_avg, aes(x = temp, y = mean_mound_fluxCO2, color = campaign))+
+  geom_smooth(method = 'lm', se = TRUE)+
   ylab("CO2 flux mmol/d/m2")+
   xlab("Average Mound Surface Temperature (C)")+
   theme_classic()
@@ -131,6 +129,7 @@ t2 <- ggplot(all_fluxes_seasonal_mound, aes(x = avg_respT, y = flux.CO2, color =
 ggarrange(t1, t2, ncol = 1, common.legend = TRUE)
 
 # mound flux and time of day with temperature included
+all_fluxes_seasonal_mound <- all_fluxes_seasonal[all_fluxes_seasonal$flux_source == "m",]
 t <- all_fluxes_seasonal_mound[all_fluxes_seasonal_mound$campaign %in% c("nov22", "aug23", "feb24"),]
 t$flux_start <- strptime(t$flux_start, "%H:%M")
 
@@ -163,11 +162,11 @@ ggarrange(t3, t4, ncol = 1, common.legend = TRUE)
 
 # table of averages by season
 detach(package:plyr)
-season_avg <- all_fluxes_seasonal_mound %>% group_by(species_s, campaign) %>% 
-  summarize(mean_CH4flux = mean(flux.CH4), 
-            mean_CO2flux = mean(flux.CO2), 
-            sd_CH4flux = sd(flux.CH4), 
-            sd_CO2flux = sd(flux.CO2))
+season_avg <- all_fluxes_seasonal_avg %>% group_by(species_s, campaign) %>% 
+  summarize(mean_CH4flux = mean(mean_mound_fluxCH4), 
+            mean_CO2flux = mean(mean_mound_fluxCO2), 
+            sd_CH4flux = sd(mean_mound_fluxCH4), 
+            sd_CO2flux = sd(mean_mound_fluxCO2))
 ```
 
 mound flux and position
