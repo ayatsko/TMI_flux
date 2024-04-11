@@ -5,10 +5,6 @@ date: "2024-03-15"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
 workspace 
 ```{r}
 setwd("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/NT/LGR_files")
@@ -225,37 +221,38 @@ CO2_fluxfinal <- merge(fluxes.CO2, meta_TMI, by="Time_start")
 CH4_fluxfinal <- merge(fluxes.CH4, meta_TMI, by="Time_start")
 
 # generate summary table 
-CH4_summary <- CH4_fluxfinal[, c("chunk","species", "ID", "material", "mass_termite_g", "flux.CH4", "sd.CH4")]
-CO2_summary <- CO2_fluxfinal[, c("ID", "flux.CO2", "sd.CO2")]
+CH4_summary <- CH4_fluxfinal[, c("chunk","species", "ID", "material", "mass_termite_g", "flux.CH4", "sd.CH4", "R2.CH4", "p.CH4", "Time_start", "fDOY_end")]
+CO2_summary <- CO2_fluxfinal[, c("ID", "flux.CO2", "sd.CO2", "R2.CO2", "p.CO2")]
 flux_summary <- left_join(CH4_summary, CO2_summary, by = "ID")
 
 # define termite emission factors
 flux_summary <- flux_summary %>%
   group_by(chunk) %>%
   mutate(emission_factor = ifelse(material == "T", flux.CH4 / mass_termite_g, NA))
+
+# clean out unusable samples 
+# remove first two coptotermes mounds NT07-09, NT10-12, NT0811TERM, 
+rm <- c("NT0811TERM", "NT07", "NT08", "NT09", "NT10", "NT11", "NT12")
+flux_summary_f <- subset(flux_summary, !ID %in% rm)
 ```
 
 preliminary viz 
 ```{r}
-# remove first two coptotermes mounds NT07-09, NT10-12, NT0811TERM, 
-rm <- c("NT0811TERM", "NT07", "NT08", "NT09", "NT10", "NT11", "NT12")
-df_filtered <- subset(flux_summary, !ID %in% rm)
-
 # emission factor
-ggplot(df_filtered, aes(x = species, y = emission_factor, fill = species))+
+ggplot(flux_summary_f, aes(x = species, y = emission_factor, fill = species))+
   geom_boxplot()+
   geom_jitter()+
   theme_classic()+
   theme(legend.position = "none")
 
 # flux by material 
-meth <- ggplot(df_filtered, aes(x = species, y = flux.CH4, fill = material))+
+meth <- ggplot(flux_summary_f, aes(x = species, y = flux.CH4, fill = material))+
   geom_boxplot()+
   geom_jitter()+
   theme_classic()+
   xlab("")
 
-co2 <- ggplot(df_filtered, aes(x = species, y = flux.CO2, fill = material))+
+co2 <- ggplot(flux_summary_f, aes(x = species, y = flux.CO2, fill = material))+
   geom_boxplot()+
   geom_jitter()+
   theme_classic()+
@@ -264,7 +261,139 @@ co2 <- ggplot(df_filtered, aes(x = species, y = flux.CO2, fill = material))+
 ggarrange(meth, co2, common.legend = TRUE)
 ```
 
-open questions 
+QC check for all measurements
+```{r}
+# check r2 values 
+# co2 
+mean(flux_summary_f$R2.CO2)
+ggplot(flux_summary_f, aes(R2.CO2))+
+  geom_histogram()+
+  theme_classic()
+
+# ch4 
+mean(flux_summary_f$R2.CH4)
+ggplot(flux_summary_f, aes(R2.CH4))+
+  geom_histogram()+
+  theme_classic()
+
+# check p values
+table(flux_summary_f$p.CO2<0.05)
+table(flux_summary_f$p.CH4<0.05)
+
+# extract everything with R2 < 0.4
+CO2_fluxfinal_NT_fix <- flux_summary_f[flux_summary_f$R2.CO2 < 0.4,]
+CH4_fluxfinal_NT_fix <- flux_summary_f[flux_summary_f$R2.CH4 < 0.4,]
+```
+
+QC CO2 
+```{r}
+# list of ID names by unique sample measurement (by creating sample-tag)
+CO2_fluxfinal_NT_fix$ID_measurement <- paste(CO2_fluxfinal_NT_fix$ID, CO2_fluxfinal_NT_fix$material, sep = "-")
+data_merge$ID_measurement <- paste(data_merge$ID, data_merge$material, sep = "-")
+target_CO2 <- as.list(CO2_fluxfinal_NT_fix$ID_measurement)
+
+# function to troubleshoot and visualize low correlation fluxes 
+CO2_fix <- function(target_CO2, CO2_fluxfinal_NT_fix, data_merge){
+  # select first ID name in list 
+  target_ID <- target_CO2[1]
+ 
+  # in fix file, set Time_start and fDOY_end as xlim_lower and xlim_upper 
+  working <- CO2_fluxfinal_NT_fix[CO2_fluxfinal_NT_fix$ID_measurement == target_ID,]
+  records <- data_merge[data_merge$ID_measurement == target_ID,]
+  xlim_lower <- working$Time_start  
+  xlim_upper <- working$fDOY_end   
+  ylim_lower <- min(records$CO2_dry) - 5
+  ylim_upper <- max(records$CO2_dry) + 5
+  
+  # plot and label with sample ID name - add to PDF where all are compiled
+  ggplot(data_merge, aes(x = fDOY, y = CO2_dry))+
+    geom_point()+
+    theme_classic()+
+    xlim(xlim_lower, xlim_upper)+
+    ylim(ylim_lower, ylim_upper)+
+    ggtitle(target_ID)
+}
+
+# test
+out_CO2 <- sapply(seq_along(target_CO2), function(x) CO2_fix(target_CO2[[x]], CO2_fluxfinal_NT_fix, data_merge), USE.NAMES= TRUE, simplify = FALSE)
+
+# ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCO2_NT.pdf",
+#    plot = marrangeGrob(out_CO2, nrow=1, ncol=1),
+#    width = 15, height = 9)
+```
+
+QC CH4
+```{r}
+# list of ID names by unique sample measurement (by creating sample-tag)
+CH4_fluxfinal_NT_fix$ID_measurement <- paste(CH4_fluxfinal_NT_fix$ID, CH4_fluxfinal_NT_fix$material, sep = "-")
+data_merge$ID_measurement <- paste(data_merge$ID, data_merge$material, sep = "-")
+target_CH4 <- as.list(CH4_fluxfinal_NT_fix$ID_measurement)
+
+# function to troubleshoot and visualize low correlation fluxes 
+CH4_fix <- function(target_CH4, CH4_fluxfinal_NT_fix, data_merge){
+  # select first ID name in list 
+  target_ID <- target_CH4[1]
+ 
+  # in fix file, set Time_start and fDOY_end as xlim_lower and xlim_upper 
+  working <- CH4_fluxfinal_NT_fix[CH4_fluxfinal_NT_fix$ID_measurement == target_ID,]
+  records <- data_merge[data_merge$ID_measurement == target_ID,]
+  xlim_lower <- working$Time_start
+  xlim_upper <- working$fDOY_end
+  ylim_lower <- min(records$CH4_dry) - .1
+  ylim_upper <- max(records$CH4_dry) + .1
+  
+  # plot and label with sample ID name - add to PDF where all are compiled
+  ggplot(data_merge, aes(x = fDOY, y = CH4_dry))+
+    geom_point()+
+    theme_classic()+
+    xlim(xlim_lower, xlim_upper)+
+    ylim(ylim_lower, ylim_upper)+
+    ggtitle(target_ID)
+}
+
+# test
+out_CH4 <- sapply(seq_along(target_CH4), function(x) CH4_fix(target_CH4[[x]], CH4_fluxfinal_NT_fix, data_merge), USE.NAMES= TRUE, simplify = FALSE)
+
+# ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCH4_NT.pdf",
+#    plot = marrangeGrob(out_CH4, nrow=1, ncol=1),
+#    width = 15, height = 9)
+```
+
+no fix, set non-significant fluxes to 0
+```{r}
+# apply to main df 
+flux_summary_f$ID_measurement <- paste(flux_summary_f$ID, flux_summary_f$material, sep = "-")
+
+# pull out samples that have p < 0.05
+table(flux_summary_f$p.CO2<0.05) # all CO2 is fine (either removed or fluxes are fixed)
+table(flux_summary_f$p.CH4<0.05)
+a <- flux_summary_f[flux_summary_f$p.CH4>0.05,]
+CH4_to_zero <- a$ID_measurement
+assign_zeros_CH4 <- c('flux.CH4', 'sd.CH4', 'R2.CH4', 'p.CH4')
+
+# function to reassign nonsignificant fluxes to 0 
+zero_flux <- function(flux_summary_f, CH4_to_zero, assign_zeros_CH4) {
+  # Replace columns in assign_zeros_CH4 with 0 for ID_measurement values in CH4_to_zero
+  flux_summary_f <- flux_summary_f %>%
+    mutate_at(vars(all_of(assign_zeros_CH4)), ~ ifelse(ID_measurement %in% CH4_to_zero, 0, .))
+  
+  return(flux_summary_f)
+}
+
+flux_summary_f_zeroadj <- zero_flux(flux_summary_f, CH4_to_zero, assign_zeros_CH4)
+```
+
+EXPORT
+```{r}
+## Export fluxes as .csv file
+# write.csv(flux_summary_f_zeroadj, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_NT.csv", row.names = FALSE)
+```
+
+#################
+DRAFT DRAFT DRAFT
+#################
+
+JUST MESSIN AROUND, MAN (aka open questions)
 ```{r}
 # how much methane is oxidized
 meth_ox <- df_filtered %>%
@@ -297,13 +426,33 @@ detach(package:plyr)
 species_mean_ox <- compiled_meth_ox %>%
   group_by(species) %>%
   summarize(mean_ox = mean(prop_ox, na.rm = TRUE))
+
+# co2 proportions 
+co2_prop <- df_filtered %>%
+  group_by(chunk) %>%
+  mutate(all = ifelse(material == "A", flux.CO2, NA), 
+         termite = ifelse(material == "T", flux.CO2, NA)) 
+
+out <- co2_prop[c("chunk", "species", "all", "termite")]
+
+compiled_co2_prop <- out %>%
+  group_by(chunk) %>%
+  summarize_all(funs(trimws(paste(unique(na.omit(.)), collapse = ", ")))) %>%
+  ungroup()
+
+compiled_co2_prop$all <- as.numeric(compiled_co2_prop$all)
+compiled_co2_prop$termite <- as.numeric(compiled_co2_prop$termite)
+compiled_co2_prop$mound <- compiled_co2_prop$all - compiled_co2_prop$termite
+
+compiled_co2_prop_long <- pivot_longer(compiled_co2_prop, cols = 3:5 , names_to = "source", values_to = "CO2")
+
+ggplot(compiled_co2_prop_long, aes(x = species, y = CO2, fill = source))+
+  geom_boxplot()+
+  geom_jitter()+
+  theme_classic()+
+  xlab("")
+
+# looks like amitermes have little microbial production of co2, coptotermes has a lot of microbial respiration, and nasutitermes may have some kind of photosynthesis going on in the mound? 
 ```
 
-## WORKING HERE ## 
-ALL QC CHECKS 
 
-export data 
-```{r}
-# EXPORT - coarse average mound fluxes
-# write.csv(flux_summary, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_NT.csv", row.names = FALSE)
-```

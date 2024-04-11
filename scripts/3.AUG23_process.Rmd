@@ -356,9 +356,7 @@ CO2_fix <- function(target_CO2, CO2_fluxfinal_aug23_fix, data_merge3){
 # test
 out_CO2 <- sapply(seq_along(target_CO2), function(x) CO2_fix(target_CO2[[x]], CO2_fluxfinal_aug23_fix, data_merge3), USE.NAMES= TRUE, simplify = FALSE)
 
-# ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCO2_aug.pdf",
-#    plot = marrangeGrob(out_CO2, nrow=1, ncol=1),
-#    width = 15, height = 9)
+# nothing to fix - all good
 ```
 
 QC CH4
@@ -398,13 +396,40 @@ out_CH4 <- sapply(seq_along(target_CH4), function(x) CH4_fix(target_CH4[[x]], CH
 #    width = 15, height = 9)
 ```
 
-nothing to fix - export files
+nothing to fix - set non-significant fluxes to 0 
+```{r}
+# define ID_measurement column 
+CO2_fluxfinal_aug23$ID_measurement <- paste(CO2_fluxfinal_aug23$sample, CO2_fluxfinal_aug23$tag, sep = "-")
+CH4_fluxfinal_aug23$ID_measurement <- paste(CH4_fluxfinal_aug23$sample, CH4_fluxfinal_aug23$tag, sep = "-")
+
+# pull out samples that have p < 0.05
+table(CO2_fluxfinal_aug23$p.CO2<0.05) # all CO2 is fine (either removed or fluxes are fixed)
+table(CH4_fluxfinal_aug23$p.CH4<0.05)
+a <- CH4_fluxfinal_aug23[CH4_fluxfinal_aug23$p.CH4>0.05,]
+
+# for CH4
+CH4_to_zero <- a$ID_measurement
+assign_zeros_CH4 <- c('flux.CH4', 'R2.CH4', 'p.CH4')
+
+# function to reassign nonsignificant fluxes to 0 
+zero_flux <- function(CH4_fluxfinal_aug23, CH4_to_zero, assign_zeros_CH4) {
+  # Replace columns in assign_zeros_CH4 with 0 for ID_measurement values in CH4_to_zero
+  CH4_fluxfinal_aug23 <- CH4_fluxfinal_aug23 %>%
+    mutate_at(vars(all_of(assign_zeros_CH4)), ~ ifelse(ID_measurement %in% CH4_to_zero, 0, .))
+  
+  return(CH4_fluxfinal_aug23)
+}
+
+CH4_fluxfinal_aug23_zeroadj <- zero_flux(CH4_fluxfinal_aug23, CH4_to_zero, assign_zeros_CH4)
+```
+
+EXPORT
 ```{r}
 ## Export fluxes as .csv file
 # CO2 (units are mmol/day)
 # write.csv(CO2_fluxfinal_aug23,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_aug23_fixed.csv", row.names = FALSE)
 
 # CH4 (units are umol/day)
-# write.csv(CH4_fluxfinal_aug23,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_fixed.csv", row.names = FALSE)
+# write.csv(CH4_fluxfinal_aug23_zeroadj,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_fixed.csv", row.names = FALSE)
 ```
 

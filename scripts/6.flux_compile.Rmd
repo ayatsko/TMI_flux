@@ -11,8 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 libraries
 ```{r}
+library(tidyverse)
 library(plyr)
-
 ```
 
 read in data
@@ -132,7 +132,8 @@ all_fluxes_mound_avg <- all_fluxes_mound %>% group_by(ID_mound, sample, species_
   summarise(mean_mound_fluxCH4=mean(flux.CH4),
             mean_mound_fluxCO2=mean(flux.CO2_umol), 
             mean_mound_fluxCH4_CO2=mean(CH4_CO2), 
-            campaign = campaign)
+            campaign = campaign, 
+            temp = mean(avg_respT))
 all_fluxes_mound_avg <- distinct(all_fluxes_mound_avg)
 
 # merge with mound SA
@@ -148,6 +149,12 @@ all_fluxes_mound_avg$mound_CO2flux <- all_fluxes_mound_avg$mean_mound_fluxCO2 * 
 
 # EXPORT - coarse average mound fluxes
 # write.csv(all_fluxes_mound_avg, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound_avg.csv", row.names = FALSE)
+
+# resampled mound averages 
+all_fluxes_resample_reps_avg <- all_fluxes_mound_avg[all_fluxes_mound_avg$sample %in% seasonal_list,]
+# EXPORT - coarse average mound fluxes
+# write.csv(all_fluxes_resample_reps_avg, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_resample_reps_avg.csv", row.names = FALSE)
+
 ```
 
 compilation of daily dataset

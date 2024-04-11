@@ -334,8 +334,8 @@ CO2_fix <- function(target_CO2, CO2_fluxfinal_aug23_fix, data_merge_day){
 # test
 out_CO2 <- sapply(seq_along(target_CO2), function(x) CO2_fix(target_CO2[[x]], CO2_fluxfinal_aug23_fix, data_merge_day), USE.NAMES= TRUE, simplify = FALSE)
 
-# ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCO2_aug_day.pdf", 
-#    plot = marrangeGrob(out_CO2, nrow=1, ncol=1), 
+# ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCO2_aug_day.pdf",
+#    plot = marrangeGrob(out_CO2, nrow=1, ncol=1),
 #    width = 15, height = 9)
 ```
 
@@ -370,8 +370,8 @@ CH4_fix <- function(target_CH4, CH4_fluxfinal_aug23_fix, data_merge_day){
 # test
 out_CH4 <- sapply(seq_along(target_CH4), function(x) CH4_fix(target_CH4[[x]], CH4_fluxfinal_aug23_fix, data_merge_day), USE.NAMES= TRUE, simplify = FALSE)
 
-# ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCH4_aug_day.pdf", 
-#    plot = marrangeGrob(out_CH4, nrow=1, ncol=1), 
+# ggsave(filename = "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/plotCH4_aug_day.pdf",
+#    plot = marrangeGrob(out_CH4, nrow=1, ncol=1),
 #    width = 15, height = 9)
 ```
 
@@ -535,61 +535,43 @@ mean(CH4_fluxfinal_aug23_day_fixed$R2.CH4)
 ggplot(CH4_fluxfinal_aug23_day_fixed, aes(R2.CH4))+
   geom_histogram()+
   theme_classic()
+```
 
+set non-significant fluxes to 0 
+```{r}
+# define ID_measurement column 
+CO2_fluxfinal_aug23_day_fixed$ID_measurement <- paste(CO2_fluxfinal_aug23_day_fixed$sample, CO2_fluxfinal_aug23_day_fixed$tag, CO2_fluxfinal_aug23_day_fixed$time_of_day, sep = "-")
+CH4_fluxfinal_aug23_day_fixed$ID_measurement <- paste(CH4_fluxfinal_aug23_day_fixed$sample, CH4_fluxfinal_aug23_day_fixed$tag, CH4_fluxfinal_aug23_day_fixed$time_of_day, sep = "-")
+
+# pull out samples that have p < 0.05
+table(CO2_fluxfinal_aug23_day_fixed$p.CO2<0.05) # all CO2 is fine (either removed or fluxes are fixed)
+table(CH4_fluxfinal_aug23_day_fixed$p.CH4<0.05)
+a <- CH4_fluxfinal_aug23_day_fixed[CH4_fluxfinal_aug23_day_fixed$p.CH4>0.05,]
+
+# for CH4
+CH4_to_zero <- a$ID_measurement
+assign_zeros_CH4 <- c('flux.CH4', 'R2.CH4', 'p.CH4')
+
+# function to reassign nonsignificant fluxes to 0 
+zero_flux <- function(CH4_fluxfinal_aug23_day_fixed, CH4_to_zero, assign_zeros_CH4) {
+  # Replace columns in assign_zeros_CH4 with 0 for ID_measurement values in CH4_to_zero
+  CH4_fluxfinal_aug23_day_fixed <- CH4_fluxfinal_aug23_day_fixed %>%
+    mutate_at(vars(all_of(assign_zeros_CH4)), ~ ifelse(ID_measurement %in% CH4_to_zero, 0, .))
+  
+  return(CH4_fluxfinal_aug23_day_fixed)
+}
+
+CH4_fluxfinal_aug23_day_fixed_zeroadj <- zero_flux(CH4_fluxfinal_aug23_day_fixed, CH4_to_zero, assign_zeros_CH4)
+```
+
+EXPORT
+```{r}
 ## Export fluxes as .csv file
 # CO2 (units are mmol/day)
 # write.csv(CO2_fluxfinal_aug23_day_fixed,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_aug23_day_fixed.csv", row.names = FALSE)
 
 # CH4 (units are umol/day)
-# write.csv(CH4_fluxfinal_aug23_day_fixed,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_day_fixed", row.names = FALSE)
-```
-
-Draft models for predictor of daily variation in fluxes 
-```{r}
-# testing for intramound variation - does position affect flux? 
-# create unique ID for mounds in different sampling periods throughout the day
-CH4_day$ID_mound <- paste(CH4_day$sample, CH4_day$time_of_day, sep = "-")
-
-# check CoV
-detach(package:plyr)
-cov <- CH4_day %>% group_by(ID_mound) %>% 
-  summarize(cov = sd(flux.CH4) / mean(flux.CH4))
-ggplot(cov, aes(cov)) +
-  geom_histogram(aes(y=after_stat(density)), colour="black", fill="white")+
- geom_density(alpha=.2, fill="#FF6666") +
-  theme_classic()
-x <- cov[cov$cov > 1, ] # 15/36 mounds have high CoV - test these further
-names <- x$ID_mound
-test <- CH4_day[CH4_day$ID_mound %in% names,]
-
-# one-way anova - using measurement tags (4-5 per mound)
-ggboxplot(test, x = "tag", y = "flux.CH4",
-          color = "tag", palette = c("#00AFBB", "#E7B800", "#FC4E07", "#FC4E40", "#FC9E40"),
-          ylab = "Flux", xlab = "Position")
-aov1 <- aov(flux.CH4 ~ tag, data = test)
-summary(aov1)
-
-# one-way anova - using position (Mid/low/top)
-ggboxplot(test, x = "position", y = "flux.CH4",
-          color = "position", palette = c("#00AFBB", "#E7B800", "#FC4E07"),
-          ylab = "Flux", xlab = "Position")
-aov2 <- aov(flux.CH4 ~ position, data = test)
-summary(aov2)
-
-# one-way anova - using direction (NESW)
-ggboxplot(test, x = "directon", y = "flux.CH4",
-          color = "directon", palette = c("#00AFBB", "#E7B800", "#FC4E07", "#FC4E40", "#FC9E40"),
-          ylab = "Flux", xlab = "Position")
-aov3 <- aov(flux.CH4 ~ directon, data = test)
-summary(aov3)
-
-# mixed effects model
-mod <- lmer(flux.CH4 ~ avg_respT + time_of_day + species + directon + (1 | sample), data = CH4_day)
-summary(mod)
-check_model(mod)
-report(mod)
-
-# time of day and temperature dont really seem to matter as much as the species and position on the mound
+# write.csv(CH4_fluxfinal_aug23_day_fixed_zeroadj,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_day_fixed", row.names = FALSE)
 ```
 
 calculate Q10

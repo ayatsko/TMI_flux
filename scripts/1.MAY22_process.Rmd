@@ -467,7 +467,7 @@ out_CH4 <- sapply(seq_along(target_CH4), function(x) CH4_fix(target_CH4[[x]], CH
 #    width = 15, height = 9)
 ```
 
-Fix QC flagged fluxes 
+Fix QC flagged fluxes - same ones need to be fixed for CO2 and CH4
 ```{r}
 # ones to remove all together 
 remove <- c("MD19-1", "MD38-4", "MD39-3")
@@ -483,12 +483,12 @@ ggplot(data_merge[data_merge$ID_measurement == problem[1],], aes(x = fDOY, y = C
 ggplot(data_merge[data_merge$ID_measurement == problem[2],], aes(x = fDOY, y = CH4_dry))+
   geom_point()+
   theme_classic()+
-  xlim(1369.383, 1369.3842)
+  xlim(1369.425, 1369.4258)
 
 ggplot(data_merge[data_merge$ID_measurement == problem[3],], aes(x = fDOY, y = CH4_dry))+
   geom_point()+
   theme_classic()+
-  xlim(1734.3896, 1734.3905)
+  xlim(1734.4312, 1734.432)
 
 # read in troubleshooting metadata, select for problem fluxes 
 trouble <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/troubleshooting_fluxes/troubleshooting_samples.csv")
@@ -537,7 +537,7 @@ ggplot(fixed3, aes(x = fDOY, y = CH4_dry))+
   geom_point()+
   theme_classic()
 
-# now need to calculate fluxes for fixed1 and fixed2 and fixed3
+# now need to recalculate fluxes for fixed1 and fixed2 and fixed3
 ```
 
 fixed fluxes
@@ -687,11 +687,37 @@ colnames(CH4_fluxfinal_may22_fixed)[colnames(CH4_fluxfinal_may22_fixed) == "flux
 
 CO2_fluxfinal_may22_fixed <- CO2_fluxfinal_may22_fixed[ , !names(CO2_fluxfinal_may22_fixed) %in% c("flux_start")]
 colnames(CO2_fluxfinal_may22_fixed)[colnames(CO2_fluxfinal_may22_fixed) == "flux_start_real"] ="flux_start"
+```
 
+set non-significant fluxes to 0 
+```{r}
+# pull out samples that have p < 0.05
+table(CO2_fluxfinal_may22_fixed$p.CO2<0.05) # all CO2 is fine (either removed or fluxes are fixed)
+table(CH4_fluxfinal_may22_fixed$p.CH4<0.05)
+a <- CH4_fluxfinal_may22_fixed[CH4_fluxfinal_may22_fixed$p.CH4>0.05,]
+
+# for CH4
+CH4_to_zero <- a$ID_measurement
+assign_zeros_CH4 <- c('flux.CH4', 'R2.CH4', 'p.CH4')
+
+# function to reassign nonsignificant fluxes to 0 
+zero_flux <- function(CH4_fluxfinal_may22_fixed, CH4_to_zero, assign_zeros_CH4) {
+  # Replace columns in assign_zeros_CH4 with 0 for ID_measurement values in CH4_to_zero
+  CH4_fluxfinal_may22_fixed <- CH4_fluxfinal_may22_fixed %>%
+    mutate_at(vars(all_of(assign_zeros_CH4)), ~ ifelse(ID_measurement %in% CH4_to_zero, 0, .))
+  
+  return(CH4_fluxfinal_may22_fixed)
+}
+
+CH4_fluxfinal_may22_fixed_zeroadj <- zero_flux(CH4_fluxfinal_may22_fixed, CH4_to_zero, assign_zeros_CH4)
+```
+
+EXPORT
+```{r}
 ## Export fluxes as .csv file
 # CO2 (units are mmol/day)
 # write.csv(CO2_fluxfinal_may22_fixed,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_may22_fixed.csv", row.names = FALSE)
 
 # CH4 (units are umol/day)
-# write.csv(CH4_fluxfinal_may22_fixed,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_may22_fixed.csv", row.names = FALSE)
+# write.csv(CH4_fluxfinal_may22_fixed_zeroadj,"/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_may22_fixed.csv", row.names = FALSE)
 ```
