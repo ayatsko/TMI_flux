@@ -23,6 +23,12 @@ aug_CH4 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/
 
 feb_CO2 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_feb24_fixed.csv")
 feb_CH4 <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_feb24_fixed.csv")
+
+CH4_daily <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_day_fixed.csv")
+CO2_daily <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_aug23_day_fixed.csv")
+
+precip <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/supp_data/precip.csv")
+mound_SA <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/supp_data/mound_SA.csv")
 ```
 
 data clean and reorganize
@@ -67,6 +73,21 @@ all_fluxes$ID_mound <- paste(all_fluxes$sample, all_fluxes$campaign, sep = "-")
 # filter out measurements without species recorded
 all_fluxes <- all_fluxes %>%
   filter(species_s != "")
+
+# add in precipitation data 
+# add three columns: precip_1mo, precip_2mo, precip_3mo
+all_fluxes$precip_1mo <-  ifelse(all_fluxes$campaign == "may22", precip$may_1mo_sum,
+                                ifelse(all_fluxes$campaign == "aug23", precip$aug_1mo_sum,
+                                       ifelse(all_fluxes$campaign == "nov22", precip$nov_1mo_sum,
+                                              ifelse(all_fluxes$campaign == "feb24", precip$feb_1mo_sum, NA))))
+all_fluxes$precip_2mo <-  ifelse(all_fluxes$campaign == "may22", precip$may_2mo_sum,
+                                ifelse(all_fluxes$campaign == "aug23", precip$aug_2mo_sum,
+                                       ifelse(all_fluxes$campaign == "nov22", precip$nov_2mo_sum,
+                                              ifelse(all_fluxes$campaign == "feb24", precip$feb_2mo_sum, NA))))
+all_fluxes$precip_3mo <- ifelse(all_fluxes$campaign == "may22", precip$may_3mo_sum,
+                                ifelse(all_fluxes$campaign == "aug23", precip$aug_3mo_sum,
+                                       ifelse(all_fluxes$campaign == "nov22", precip$nov_3mo_sum,
+                                              ifelse(all_fluxes$campaign == "feb24", precip$feb_3mo_sum, NA))))
 
 # EXPORT - all fluxes
 # write.csv(all_fluxes, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes.csv", row.names = FALSE)
@@ -128,11 +149,13 @@ all_fluxes_mound_avg <- all_fluxes_mound %>% group_by(ID_mound, sample, species_
             mean_mound_fluxCO2=mean(flux.CO2_umol), 
             mean_mound_fluxCH4_CO2=mean(CH4_CO2), 
             campaign = campaign, 
-            temp = mean(avg_respT))
+            temp = mean(avg_respT), 
+            precip_1mo = precip_1mo, 
+            precip_2mo = precip_2mo, 
+            precip_3mo = precip_3mo)
 all_fluxes_mound_avg <- distinct(all_fluxes_mound_avg)
 
 # merge with mound SA
-mound_SA <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/supp_data/mound_SA.csv")
 mound_SA <- mound_SA[, c('sample', 'SA_m2', 'basal_area_m2')]
 mound_SA <- mound_SA[!is.na(mound_SA$SA_m2),]
 all_fluxes_mound_avg <- merge(all_fluxes_mound_avg, mound_SA, by = "sample")
@@ -154,10 +177,6 @@ all_fluxes_resample_reps_avg <- all_fluxes_mound_avg[all_fluxes_mound_avg$sample
 
 compilation of daily dataset
 ```{r}
-# lists of CO2 and CH4 files from different seasons
-CH4_daily <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CH4_fluxfinal_aug23_day_fixed.csv")
-CO2_daily <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/CO2_fluxfinal_aug23_day_fixed.csv")
-
 # merge CO2 and CH4 df together 
 all <- full_join(CO2_daily, CH4_daily)
 

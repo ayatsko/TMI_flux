@@ -13,6 +13,12 @@ libraries
 ```{r}
 library(ggplot2)
 library(lme4)
+library(car)
+library(easystats)
+library(ggeffects)
+library(vegan)
+library(partR2)
+library(patchwork)
 ```
 
 data load 
@@ -28,21 +34,11 @@ all_fluxes_mound$tag <- as.factor(all_fluxes_mound$tag)
 all_fluxes_mound$position <- ifelse(all_fluxes_mound$position == "top ", "top", all_fluxes_mound$position)
 all_fluxes_mound$position <- as.factor(all_fluxes_mound$position) 
 
-mod1 <- aov(flux.CH4 ~ tag + species_s, data = all_fluxes_mound)
-summary(mod1)
-ggpredict(mod1, terms = c("tag", "species_s")) %>% plot(add.data = TRUE)
-# significant model, but add random effect of mound individual? 
-
-mod2 <- aov(flux.CH4 ~ position + species_s, data = all_fluxes_mound)
-summary(mod2)
-ggpredict(mod2, terms = c("position", "species_s")) %>% plot(add.data = TRUE)
-# not significant, position on the mound does not matter
-
 # Fit linear mixed-effects model (which I think is best?)
-mod3 <- lmer(flux.CH4 ~ tag + species_s + (1 | ID_mound), data = all_fluxes_mound)
-anova(mod3)
-check_model(mod3)
-ggpredict(mod3, terms = c("tag", "species_s")) %>% plot(add.data = TRUE)
+mod1 <- lmer(flux.CH4 ~ tag + species_s + (1 | ID_mound), data = all_fluxes_mound)
+Anova(mod1)
+check_model(mod1)
+ggpredict(mod1, terms = c("tag", "species_s")) %>% plot(add.data = TRUE)
 # no significant effect of tag with random effect included
 ```
 
@@ -76,8 +72,7 @@ x <- cov[cov$cov > 1, ] # cov = 1 means that sd = mean
 # if intramound variation is not significant - calculate overall mound average and use this in further analyses
 ```
 
-influences of mound flux (average) for mounds that were measured in all 4 time points
-species, season, temperature, size
+how species, season, temperature, and size effect mound flux (average rate per mound) for mounds that were remeasured in all 4 time points
 ```{r}
 # Fit linear mixed-effects model
 all_fluxes_resample_reps_avg$species_s <- as.factor(all_fluxes_resample_reps_avg$species_s)
@@ -85,33 +80,111 @@ all_fluxes_resample_reps_avg$campaign <- as.factor(all_fluxes_resample_reps_avg$
 all_fluxes_resample_reps_avg$sample <- as.factor(all_fluxes_resample_reps_avg$sample)
 
 # big model with them all in 
-mod4 <- lmer(mean_mound_fluxCH4 ~ species_s + temp + SA_m2 + (1 | sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
+mod1 <- lmer(mean_mound_fluxCH4 ~ species_s + temp + precip_3mo  + SA_m2 + (1 | sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
+Anova(mod1)
+check_model(mod1)
+ggpredict(mod1, terms = c("temp", "species_s")) %>% plot(add.data = TRUE)
+
+# same as above but swap basal area for surface area (different metric of size)
+mod2 <- lmer(mean_mound_fluxCH4 ~ species_s + temp + precip_3mo  + basal_area_m2 + (1 | sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
+Anova(mod2)
+check_model(mod2)
+
+# remove SA from mod1
+mod3 <- lmer(mean_mound_fluxCH4 ~ species_s + temp + precip_3mo + (1 | sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
+Anova(mod3)
+check_model(mod3)
+
+# same as above but drop precip from mod3
+mod4 <- lmer(mean_mound_fluxCH4 ~ species_s + temp + (1 | sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
 Anova(mod4)
 check_model(mod4)
-ggpredict(mod4, terms = c("temp", "species_s")) %>% plot(add.data = TRUE)
 
-# SA and species arent important - remove SA and see what happens (consider species_s*SA_m2, but not significant, remove SA)
-mod5 <- lmer(mean_mound_fluxCH4 ~ species_s  + temp + (1 | sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
+# drop precip from mod 2 
+mod5 <- lmer(mean_mound_fluxCH4 ~ species_s + temp  + basal_area_m2 + (1 | sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
 Anova(mod5)
-summary(mod5)
 check_model(mod5)
-ggpredict(mod5, terms = c( "campaign", "temp", "species_s")) %>% plot(add.data = TRUE)
-AIC(mod4, mod5)
+ggpredict(mod5, terms = c("temp", "basal_area_m2", "species_s")) %>% plot(add.data = TRUE)
 
-# visualize relationship between mound size and species 
-ggplot(all_fluxes_resample_reps_avg, aes(x = species_s, y = SA_m2, fill = species_s))+
-  geom_boxplot()+
-  theme_classic()
-
-# consider potential interaction between campaign and temperature
-mod6 <- lmer(mean_mound_fluxCH4 ~ species_s + campaign*temp + (1 | sample), data = all_fluxes_resample_reps_avg)
-anova(mod6)
-check_model(mod6) # doesnt look like there is much here
-
-# flux and te
+# compare models
+AIC(mod1, mod2, mod3, mod4, mod5)
 ```
 
-does mound flux change throughout the day 
+how species, season, temperature, and size effect total mound flux for mounds that were remeasured in all 4 time points
+```{r}
+# define size factor as SA/BA 
+all_fluxes_resample_reps_avg$size_factor <- all_fluxes_resample_reps_avg$SA_m2 / all_fluxes_resample_reps_avg$basal_area_m2
+
+# Fit linear mixed-effects model with all factors 
+mod6 <- lmer(mound_CH4flux ~ species_s + SA_m2 + temp + precip_3mo + (1 | sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
+Anova(mod6)
+check_model(mod6)
+ggpredict(mod6, terms = c("species_s", "SA_m2")) %>% plot(add.data = TRUE)
+
+mod6int <- lmer(mound_CH4flux ~ species_s*SA_m2 + temp + precip_3mo + (1 | sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
+Anova(mod6int)
+
+mod6int2x <- lmer(mound_CH4flux ~ species_s*SA_m2*temp + precip_3mo + (1 | sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
+Anova(mod6int2x)
+
+# same as above but swap SA for the size factor
+mod7 <- lmer(mound_CH4flux ~ species_s + size_factor + temp + precip_3mo + (1 | sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
+Anova(mod7)
+check_model(mod7)
+
+# remove precip from mod6int
+mod8 <- lmer(mound_CH4flux ~ species_s*SA_m2 + temp + (1 | sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
+Anova(mod8)
+check_model(mod8)
+
+# remove temp from mod6
+mod9 <- lmer(mound_CH4flux ~ species_s + SA_m2 + precip_3mo + (1 | sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
+Anova(mod9)
+check_model(mod9)
+
+# remove temp and precip from mod6int
+mod10 <- lmer(mound_CH4flux ~ species_s + SA_m2 + (1 | sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
+Anova(mod10)
+check_model(mod10)
+
+# compare models
+AIC(mod6, mod7, mod8, mod9, mod10)
+```
+
+variance partitioning from predictors of multiple regression models
+see: https://cran.r-project.org/web/packages/partR2/vignettes/Using_partR2.html
+and corresponding paper: https://peerj.com/articles/11414/
+```{r}
+# calculate marginal R2 (marginal = variance explained by fixed effects only. set R2_type to "conditional" for fixed+random)
+R2_mod5_m <- partR2(mod5, data = all_fluxes_resample_reps_avg, R2_type = "marginal", nboot = 10)
+R2_mod5_c <- partR2(mod5, data = all_fluxes_resample_reps_avg, R2_type = "conditional", nboot = 10)
+
+# how much do predictors explain: uniquely and together
+a <- partR2(mod5, partvars = c("temp", "basal_area_m2", "species_s"), 
+                  R2_type = "marginal", nboot = 10)
+summary(a)
+
+# visualization 
+p1 <- forestplot(a, type = "R2", text_size = 10)
+p2 <- forestplot(a, type = "IR2", text_size = 10)
+p3 <- forestplot(a, type = "SC", text_size = 10)
+p4 <- forestplot(a, type = "BW", text_size = 10)
+(p1 + p2) / (p3 + p4) + plot_annotation(tag_levels = "A")
+
+### DARFT ###
+
+# from mod5 (best model atm)
+vp <- varpart(all_fluxes_resample_reps_avg$mean_mound_fluxCH4, ~ temp, ~ species_s, ~ basal_area_m2, data = all_fluxes_resample_reps_avg)
+plot(vp, Xnames = c("Temp", "Species", "Basal area"), bg = c("seagreen3", "mediumpurple", "yellow"), alpha = 80, 
+     digits = 2, cex = 1.5)
+
+# test for significance of three influential factors using RDA
+rda <- rda(all_fluxes_resample_reps_avg$mean_mound_fluxCH4 ~ temp + species_s + basal_area_m2, data = all_fluxes_resample_reps_avg)
+rda
+
+```
+
+does mound flux change throughout the day, temperature response/Q10 
 ```{r}
 # first test the effect of intramound variation to see if values can be averaged
 all_fluxes_daily$tag <- as.factor(all_fluxes_daily$tag)
@@ -150,70 +223,5 @@ mod <- lm(flux.CH4 ~ wall_thickness_mm, data = df)
 summary(mod)
 check_model(mod)
 ggpredict(mod, terms = c("wall_thickness_mm")) %>% plot(add.data = TRUE)
-```
-
-#################
-DRAFT DRAFT DRAFT 
-#################
-
-Variance partitioning 
-```{r}
-# what variables may matter: species, campaign, temperature, intramound position, hour of measurement, individual mound?
-# restructure factor variables
-all_fluxes_resample$species_s <- as.factor(all_fluxes_resample$species_s) 
-all_fluxes_resample$campaign <- as.factor(all_fluxes_resample$campaign)
-all_fluxes_resample$tag <- as.factor(all_fluxes_resample$tag)
-all_fluxes_resample$sample <- as.factor(all_fluxes_resample$sample)
-
-# extract hour of measurement from flux_start column 
-h <- all_fluxes_resample$flux_start
-i <- sub("\\:.*", "", h)
-j <- i[121:344]
-k <- i[1:120]
-l <- str_sub(k, -2)
-hours <- c(l,j)
-all_fluxes_resample$hour <- hours
-all_fluxes_resample <- all_fluxes_resample %>% relocate(hour, .after = flux_start)
-all_fluxes_resample$hour <- as.numeric(all_fluxes_resample$hour)
-
-# reasonable model, main variables of interest
-vp <- varpart(all_fluxes_resample$flux.CH4, ~ avg_respT, ~ campaign, ~ species_s, data = all_fluxes_resample)
-plot(vp, Xnames = c("Temp", "Campaign", "Species"), bg = c("seagreen3", "mediumpurple", "yellow"), alpha = 80, 
-     digits = 2, cex = 1.5)
-
-# model hierarchy (kelsey paper) 
-# for within mound (sub measurements, temp?, position) - how much does it matter for intramound measures?
-# within species (sample, temp?)
-# between species (temp, campaign, time of day)
-
-# random testing 
-vp <- varpart(all_fluxes_resample$flux.CH4, ~ species_s, ~ avg_respT, ~ hour, data = all_fluxes_resample)
-plot(vp, Xnames = c("Species", "Campaign", "Flux start"), bg = c("seagreen3", "mediumpurple", "yellow"), alpha = 80, 
-     digits = 2, cex = 1.5)
-
-# what parts of the partitioning are significant?
-# test for significance of three influential factors using RDA
-rda <- rda(all_fluxes_resample$flux.CH4~avg_respT+campaign+species_s, data=all_fluxes_resample)
-rda
-step.forward <- ordistep(rda(all_fluxes_resample$flux.CH4 ~ 1, data=all_fluxes_resample), scope=formula (rda), direction="forward", pstep=1000)
-
-# temporal factors / environmental factors run seperately? 
-
-# new package: POV
-library("POV")
-
-# level 1: within mound variation - does position matter? 
-POV(flux.CH4 ~ ID_mound, Data = all_fluxes_resample, Complete=TRUE)
-# Within ID_mound > Between ID_mound means that mound subsamples do matter? 
-
-POV(flux.CH4 ~ ID_mound*position, Data = all_fluxes_resample, Complete=TRUE)
-# variation across mounds is more important than the variation within mounds? 
-
-# level 2: within species variation - does individual matter? 
-POV(flux.CH4 ~ species_s*ID_mound, Data = all_fluxes_resample, Complete=TRUE)
-
-# level 3: across species variation - do other environmental/time factors matter?
-POV(flux.CH4 ~ campaign*ID_mound, Data = all_fluxes_resample, Complete=TRUE)
-
 ```
 
