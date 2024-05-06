@@ -11,52 +11,252 @@ library(ggplot2)
 library(dplyr)
 library(plyr)
 library(ggpubr)
+library(patchwork)
 ```
 
 data load 
 ```{r}
-# all fluxes - mound 
-all_fluxes_mound <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound.csv")
-# all fluxes - mound average
+# Q1
 all_fluxes_mound_avg <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound_avg.csv")
-# all fluxes - seasonal with replication, as a mound average
-all_fluxes_seasonal_avg <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_resample_reps_avg.csv")
-# all fluxes - daily 
-all_fluxes_daily <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_daily_fluxes.csv")
-# all fluxes - naked termites 
+all_fluxes_mound <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound.csv")
+
+# Q2 
 all_fluxes_NT <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_NT.csv")
+p_fluxes_f <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/p_fluxes_f.csv")
+
+# Q3
+all_fluxes_seasonal_avg <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_resample_reps_avg.csv")
+
+# Q4
+
+# Supplement
+all_fluxes_daily <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_daily_fluxes.csv")
 ```
 
-mound flux and species
+Q1: How do mound properties influence CH4 flux? 
 ```{r}
-# average mound CH4 flux from three different species
-m1 <- ggplot(data = all_fluxes_mound_avg, aes(x = species_s, y = mean_mound_fluxCH4, fill = species_s)) + 
-  geom_boxplot()+ 
-  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+  
+# SIZE
+# reorder levels of campaigns 
+all_fluxes_mound_avg$campaign <- factor(all_fluxes_mound_avg$campaign, levels = c("may22", "aug23", "nov22", "feb24"))
+
+# methane flux (whole mound) by mound size 
+ggplot(all_fluxes_mound_avg, aes(x = basal_area_m2, y = mound_CH4flux, color = species_s)) + # swap out basal_area_m2, color = campaign
+  geom_point()+ 
+  geom_smooth(method = 'lm')+
+  facet_wrap(~species_s, scales = "free")+ 
+  scale_color_brewer(palette = "Dark2")+
   theme_classic()+
-  ylim(0,28000) + # removes two outliers to make graph more readable
+  ylab("Mean mound CH4 flux (umol/d/mound)") +
+  xlab("Mound surface area (m2)")+
+  theme(legend.position = "none")
+
+# average mound size by species
+ggplot(all_fluxes_mound_avg, aes(x = species_s, y = SA_m2, fill = species_s))+ # swap out basal_area_m2
+  geom_boxplot()+
+  theme_classic()+
+  xlab("")+
+  ylab("Mound surface area (m2)")+
+  scale_fill_brewer(palette = "Dark2")+
+  theme(legend.position = "none")
+
+# WALL THICKNESS
+wt <- all_fluxes_mound[!is.na(all_fluxes_mound$wall_thickness_mm), ]
+
+# calculate average mound wall thickness
+wt_avg <- wt %>% group_by(ID_mound, sample, species_s) %>% 
+  summarise(mean_mound_fluxCH4=mean(flux.CH4),
+            mean_mound_fluxCO2=mean(flux.CO2_umol), 
+            mean_mound_fluxCH4_CO2=mean(CH4_CO2), 
+            campaign = campaign, 
+            temp = mean(avg_respT), 
+            precip_1mo = precip_1mo, 
+            wall_thickness_mm = mean(wall_thickness_mm))
+wt_mound_avg <- distinct(wt_avg)
+
+ggplot(wt_mound_avg, aes(x = wall_thickness_mm, y = mean_mound_fluxCH4, color = species_s)) +
+  geom_point()+ 
+  geom_smooth(method = "lm")+
+  theme_classic()+
   ylab("CH4 flux umol/d/m2")+
-  xlab("")
+  xlab("Mound wall thickness (mm)")+
+  ggtitle("Average mound wall thickness")+
+  scale_color_brewer(palette = "Dark2")+
+  theme(legend.position = "bottom")
+```
 
-# average mound CO2 flux from three different species
-m2 <- ggplot(data = all_fluxes_mound_avg, aes(x = species_s, y = mean_mound_fluxCO2, fill = species_s)) + 
-  geom_boxplot()+ 
-  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+  
+Q2: How do termites differ in carbon gas flux? 
+```{r}
+# TEF 
+ggplot(all_fluxes_NT, aes(x = species, y = TEF_ug_g_h, fill = species))+
+  geom_boxplot()+
+  geom_jitter()+
+  ylab("Termite EF (ug CH4/hr/g termite)")+
+  xlab("")+
+  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
+  scale_fill_brewer(palette = "Dark2")+
   theme_classic()+
-  ylab("CO2 flux mmol/d/m2")+
-  xlab("")
+  theme(legend.position = "none")
 
-# overall CH4:CO2 from three different species
-m3 <- ggplot(data = all_fluxes_mound_avg, aes(x = species_s, y = mean_mound_fluxCH4_CO2, fill = species_s)) + 
-  geom_boxplot()+ 
-  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+  
+# PROPORTIONAL FLUXES
+df <- p_fluxes_f[c("species", "prop_T_CH4", "prop_M_CH4", "prop_T_CO2", "prop_M_CO2")]
+df_long <- df %>%
+  pivot_longer(cols = starts_with("prop_"), 
+               names_to = c(".value", "flux"), 
+               names_pattern = "prop_(.*)_(.*)") %>%
+  pivot_longer(cols = c(T, M), 
+               names_to = "material", 
+               values_to = "prop") %>%
+  rename(species = species)
+
+ch4 <- ggplot(df_long[df_long$flux == "CH4",], aes(x = species, y = prop, fill = material))+
+  geom_boxplot()+
+  ylab("Proportion CH4 flux")+
+  xlab("")+
+  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
+  scale_fill_brewer(palette = "Dark2")+
+  theme_classic()
+
+co2 <- ggplot(df_long[df_long$flux == "CO2",], aes(x = species, y = prop, fill = material))+
+  geom_boxplot()+
+  ylab("Proportion CO2 flux")+
+  xlab("")+
+  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
+  scale_fill_brewer(palette = "Dark2")+
+  theme_classic()
+
+fig2 <- ch4 + co2 + plot_layout(guides = 'collect')
+
+# test what the ratio of termite:mound mass is - best if consistent across the df (seems to be largely true)
+p_fluxes_f$termite_mound_ratio <- p_fluxes_f$mass_termite_g / p_fluxes_f$mass_mound_material_g
+ggplot(p_fluxes_f, aes(x = species, y = termite_mound_ratio, fill = species))+
+  geom_boxplot()+
+  ylab("Termite mass:Mound mass")+
+  xlab("")+
+  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
+  scale_fill_brewer(palette = "Dark2")+
   theme_classic()+
-  ylab("CH4:CO2")+
-  ylim(0,0.04)+ # removes big outlier
+  theme(legend.position = "none")
+```
+
+Q3: How does the environment influence CH4 flux? 
+```{r}
+# OVER SEASON 
+ggplot(all_fluxes_seasonal_avg, aes(x = temp, y = mean_mound_fluxCH4, color = species_s))+
+  geom_point()+
+  geom_smooth(method = 'lm', se = TRUE)+
+  ylab("CH4 flux umol/d/m2")+
+  xlab("Average Mound Surface Temperature (C)")+
+  scale_color_brewer(palette = "Dark2")+
+  theme_classic()
+
+# temperature changes throughout the year
+ggplot(all_fluxes_mound_avg, aes(x = campaign, y = temp, fill = campaign))+
+  geom_boxplot()+
+  geom_jitter()+
+  ylab("Average Mound Surface Temperature (C)")+
+  xlab("")+
+  scale_fill_brewer(palette = "Dark2")+
+  theme_classic()+
+  theme(legend.position = "none")
+
+# temperature changes throughout the day
+t <- all_fluxes_mound[all_fluxes_mound$campaign %in% c("nov22", "aug23", "feb24"),]
+t$flux_start <- strptime(t$flux_start, "%H:%M")
+
+tt <- all_fluxes_mound[all_fluxes_mound$campaign %in% c("may22"),]
+start <- nchar(tt$flux_start) - 7
+tt$flux_start_test <- substring(tt$flux_start, start, nchar(tt$flux_start))
+tt$flux_start <- strptime(tt$flux_start_test, "%H:%M")
+tt <- tt[, -which(names(tt) == "flux_start_test")]
+
+all_fluxes_withtime <- rbind(t, tt)
+
+# temperature throughout the day by season
+ggplot(all_fluxes_withtime, aes(x = as.POSIXct(flux_start), y = avg_respT, color = campaign))+
+  geom_jitter()+
+  geom_smooth(method = 'loess', se = TRUE)+
+  ylab("Average Mound Surface Temperature (C)")+
+  xlab("Time of day")+
+  theme_classic()
+
+# table of averages by season (all mounds, not those with repeat measurements)
+detach(package:plyr)
+season_avg <- all_fluxes_mound_avg %>% group_by(species_s, campaign) %>% 
+  summarize(mean_CH4flux = mean(mean_mound_fluxCH4), 
+            mean_CO2flux = mean(mean_mound_fluxCO2), 
+            sd_CH4flux = sd(mean_mound_fluxCH4), 
+            sd_CO2flux = sd(mean_mound_fluxCO2), 
+            count = n())
+```
+
+Q4: How do mound microbial communities influence carbon gas flux? 
+```{r}
+
+```
+
+Q5: How do termite mound CH4 fluxes impact methane release at savanna landscape scales?
+```{r}
+
+```
+
+Supplement
+```{r}
+# INTRAMOUND VARIATION OF MOUND FLUX
+all_fluxes_mound$position <- ifelse(all_fluxes_mound$position == "top ", "top", all_fluxes_mound$position)
+ggplot(data = all_fluxes_mound, aes(x = species_s, y = flux.CH4, fill = position)) + 
+  geom_boxplot()+ 
+  theme_classic()+
+  ylab("CH4 flux umol/d/m2")+
+  ylim(0,24000)+ # removes big outlier
   xlab("")
 
-ggarrange(m1,m2,m3, ncol = 3, common.legend = TRUE)
+# direction on mound
+ggplot(data = all_fluxes_mound, aes(x = directon, y = flux.CH4, fill = directon)) + 
+  geom_boxplot()+ 
+  theme_classic()+
+  ylab("CH4 flux umol/d/m2")+
+  ylim(0,24000)+ # removes big outlier
+  xlab("Direction")+
+  scale_x_discrete(limits = c("E", "N", "S", "W"), labels = c("E", "N", "S", "W"))
 
+# TIME OF DAY AND FLUX
+# reorder levels of time of day
+all_fluxes_daily$time_of_day <- factor(all_fluxes_daily$time_of_day, levels = c("morning", "midday", "afternoon", "night"))
+
+# time by flux for species
+ggplot(all_fluxes_daily, aes(x = species_s, y = flux.CH4, fill = time_of_day))+
+  geom_boxplot()+
+  theme_classic()+
+  xlab("")+
+  ylab("CH4 flux (umol/d/mound)")+
+  ylim(0,25000) # removes outlier
+
+# calculate mound average for flux and temp 
+all_fluxes_daily$sampleTOD <- paste(all_fluxes_daily$sample, all_fluxes_daily$time_of_day, sep = "-")
+daily_avg <- all_fluxes_daily %>% group_by(sampleTOD) %>% 
+  summarise(mean_mound_fluxCH4=mean(flux.CH4),
+            mean_mound_fluxCO2=mean(flux.CO2_umol), 
+            mean_mound_fluxCH4_CO2=mean(CH4_CO2), 
+            time_of_day = time_of_day, 
+            species_s = species_s,
+            sample = sample,
+            temp = mean(avg_respT))
+daily_avg_f <- distinct(daily_avg)
+
+# temp by flux for species at mound-level average
+ggplot(daily_avg_f, aes(x = temp, y = mean_mound_fluxCH4, color = sample))+
+  geom_point()+
+  geom_smooth(method = "loess")+
+  facet_wrap(~species_s, scales = "free_y")+
+  theme_classic()+
+  xlab("Temperature (C)")+
+  ylab("CH4 flux (umol/d/mound)")
+```
+
+
+### DRAFT ###
+species AVERAGE MOUND FLUX
+```{r}
 # table of averages by species
 detach(package:plyr)
 sp_avg <- all_fluxes_mound_avg %>% group_by(species_s) %>% 
@@ -96,296 +296,5 @@ s2 <- ggplot(data = all_fluxes_mound_avg, aes(x = species_s, y = mean_mound_flux
   scale_fill_viridis_d(option = "plasma")+
   theme(legend.position = "bottom")
 
-# overall CH4:CO2 from three different species
-s3 <- ggplot(data = all_fluxes_seasonal_avg, aes(x = species_s, y = mean_mound_fluxCH4_CO2, fill = campaign)) + 
-  geom_boxplot()+ 
-  scale_x_discrete(limits = c("N. magnus", "A. laurensis", "C. acinaciformis"))+  
-  theme_classic()+
-  ylab("CH4:CO2")+
-  ylim(0,0.06)+ # removes big outlier
-  xlab("")
-
 s1 + s2 + plot_layout(ncol = 1)+ patchwork::plot_annotation(tag_levels = "a")
-```
-
-mound flux and temperature
-```{r}
-# mound flux and temperature
-t1 <- ggplot(all_fluxes_mound_avg, aes(x = temp, y = mean_mound_fluxCH4, color = species_s))+
-  geom_smooth(method = 'lm', se = TRUE)+
-  geom_point()+
-  ylab("CH4 flux umol/d/m2")+
-  xlab("Average Mound Surface Temperature (C)")+
-  theme_classic()
-
-t2 <- ggplot(all_fluxes_mound_avg, aes(x = temp, y = mean_mound_fluxCO2, color = species_s))+
-  geom_smooth(method = 'lm', se = TRUE)+
-  geom_point()+
-  ylab("CO2 flux mmol/d/m2")+
-  xlab("Average Mound Surface Temperature (C)")+
-  theme_classic()
-
-ggarrange(t1, t2, ncol = 1, common.legend = TRUE)
-
-# mound flux and time of day with temperature included
-all_fluxes_seasonal_mound <- all_fluxes_seasonal[all_fluxes_seasonal$flux_source == "m",]
-t <- all_fluxes_seasonal_mound[all_fluxes_seasonal_mound$campaign %in% c("nov22", "aug23", "feb24"),]
-t$flux_start <- strptime(t$flux_start, "%H:%M")
-
-tt <- all_fluxes_seasonal_mound[all_fluxes_seasonal_mound$campaign %in% c("may22"),]
-start <- nchar(tt$flux_start) - 7
-tt$flux_start_test <- substring(tt$flux_start, start, nchar(tt$flux_start))
-tt$flux_start <- strptime(tt$flux_start_test, "%H:%M")
-tt <- tt[, -which(names(tt) == "flux_start_test")]
-
-all_fluxes_seasonal_mound_withtime <- rbind(t, tt)
-
-# temperature throughout the day by season
-t3 <- ggplot(all_fluxes_seasonal_mound_withtime, aes(x = as.POSIXct(flux_start), y = avg_respT, color = campaign))+
-  geom_jitter()+
-  geom_smooth(method = 'lm', se = TRUE)+
-  ylab("Average Mound Surface Temperature (C)")+
-  xlab("Time of day")+
-  theme_classic()
-
-# temperature response of gas flux by season
-t4 <- ggplot(all_fluxes_seasonal_mound_withtime, aes(x = avg_respT, y = flux.CH4, color = campaign))+
-  geom_point()+
-  geom_smooth(method = 'lm', se = FALSE)+
-  ylab("CH4 flux umol/d/m2")+
-  xlab("Average Mound Surface Temperature (C)")+
-  theme_classic()+
-  ylim(0,25000) # address negative outlier 
-
-ggarrange(t3, t4, ncol = 1, common.legend = TRUE)
-
-# table of averages by season (all mounds, not those with repeat measurements)
-detach(package:plyr)
-season_avg <- all_fluxes_mound_avg %>% group_by(species_s, campaign) %>% 
-  summarize(mean_CH4flux = mean(mean_mound_fluxCH4), 
-            mean_CO2flux = mean(mean_mound_fluxCO2), 
-            sd_CH4flux = sd(mean_mound_fluxCH4), 
-            sd_CO2flux = sd(mean_mound_fluxCO2), 
-            count = n())
-# EXPORT
-# write.csv(season_avg, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/data_out/season_avg.csv", row.names = FALSE)
-```
-
-mound flux and position
-```{r}
-# position in mound
-all_fluxes_mound$position <- ifelse(all_fluxes_mound$position == "top ", "top", all_fluxes_mound$position)
-ggplot(data = all_fluxes_mound, aes(x = species_s, y = flux.CH4, fill = position)) + 
-  geom_boxplot()+ 
-  theme_classic()+
-  ylab("CH4 flux umol/d/m2")+
-  ylim(0,24000)+ # removes big outlier
-  xlab("")
-
-# direction on mound
-ggplot(data = all_fluxes_mound, aes(x = directon, y = flux.CH4, fill = directon)) + 
-  geom_boxplot()+ 
-  theme_classic()+
-  ylab("CH4 flux umol/d/m2")+
-  ylim(0,24000)+ # removes big outlier
-  xlab("Direction")+
-  scale_x_discrete(limits = c("E", "N", "S", "W"), labels = c("E", "N", "S", "W"))
-```
-
-mound flux and size
-```{r}
-# reorder levels of campaigns 
-all_fluxes_mound_avg$campaign <- factor(all_fluxes_mound_avg$campaign, levels = c("may22", "aug23", "nov22", "feb24"))
-# graph methane flux by mound size (surface/basal area interchangeable: SA_m2/basal_area_m2)
-a1 <- ggplot(all_fluxes_mound_avg, aes(x = SA_m2, y = mean_mound_fluxCH4)) +
-  geom_point()+ 
-  geom_smooth(method = 'lm')+
-  facet_wrap(species_s~campaign, scales = "free")+ 
-  theme_classic()+
-  ylab("Mean mound CH4 flux (umol/d/mound)") +
-  xlab("Mound surface area (m2)")
-
-# graph carbon dioxide flux by mound size 
-a2 <- ggplot(data = all_fluxes_mound_avg, aes(x = SA_m2, y = mean_mound_fluxCO2)) +
-  geom_point()+ 
-  geom_smooth(method = 'lm')+
-  facet_grid(species_s~campaign, scales = "free_x")+ 
-  theme_classic()+
-  ylab("Total mound CO2 flux (mmol/d/mound)") +
-  xlab("Mound surface area (m2)")
-
-# graph CH4:CO2 flux by mound size 
-a3 <- ggplot(data = all_fluxes_mound_avg, aes(x = SA_m2, y = mean_mound_fluxCH4_CO2)) +
-  geom_point()+ 
-  geom_smooth(method = 'lm')+
-  scale_color_brewer("Blues")+
-  facet_wrap(~species_s, scales = "free_x")+ 
-  theme_classic()+
-  ylab("Total mound CH4:CO2") +
-  xlab("Mound basal area (m2)")
-
-ggarrange(a1, a2, ncol = 1)
-
-# relationship between surface area and basal area (by species)
-ggplot(all_fluxes_mound_avg, aes(x = SA_m2, y = basal_area_m2)) +
-  geom_point()+ 
-  geom_smooth(method = 'lm')+
-  scale_color_brewer("Blues")+
-  facet_wrap(~species_s, scales = "free_x")+ 
-  theme_classic()+
-  ylab("Mound basal area (m2)") +
-  xlab("Mound surface area (m2)")
-```
-
-mound flux and wall thickness 
-```{r}
-wt <- all_fluxes_mound[!is.na(all_fluxes_mound$wall_thickness_mm), ]
-
-w1 <- ggplot(wt, aes(x = wall_thickness_mm, y = flux.CH4, color = species_s)) +
-  geom_point()+ 
-  geom_smooth(method = "lm")+
-  theme_classic()+
-  ylab("CH4 flux umol/d/m2")+
-  xlab("Mound wall thickness (mm)")+
-  ggtitle("Sample point wall thickness")+
-  theme(legend.position = "none")
-
-# calculate average mound wall thickness
-wt_avg <- wt %>% group_by(ID_mound, sample, species_s) %>% 
-  summarise(mean_mound_fluxCH4=mean(flux.CH4),
-            mean_mound_fluxCO2=mean(flux.CO2_umol), 
-            mean_mound_fluxCH4_CO2=mean(CH4_CO2), 
-            campaign = campaign, 
-            temp = mean(avg_respT), 
-            precip_1mo = precip_1mo, 
-            precip_2mo = precip_2mo, 
-            precip_3mo = precip_3mo,
-            wall_thickness_mm = mean(wall_thickness_mm))
-wt_mound_avg <- distinct(wt_avg)
-
-w2 <- ggplot(wt_mound_avg, aes(x = wall_thickness_mm, y = mean_mound_fluxCH4, color = species_s)) +
-  geom_point()+ 
-  geom_smooth(method = "lm")+
-  theme_classic()+
-  ylab("CH4 flux umol/d/m2")+
-  xlab("Mound wall thickness (mm)")+
-  ggtitle("Average mound wall thickness")+
-  theme(legend.position = "bottom")
-
-w1 + w2 + plot_layout(ncol = 1)+ patchwork::plot_annotation(tag_levels = "a")
-```
-
-mound flux throughout the day
-```{r}
-# reorder levels of time of day
-all_fluxes_daily$time_of_day <- factor(all_fluxes_daily$time_of_day, levels = c("morning", "midday", "afternoon", "night"))
-
-# time by flux for species
-ggplot(all_fluxes_daily, aes(x = species_s, y = flux.CH4, fill = time_of_day))+
-  geom_boxplot()+
-  theme_classic()+
-  xlab("")+
-  ylab("CH4 flux (umol/d/mound)")+
-  ylim(0,25000) # removes outlier
-
-# temp by flux for species
-ggplot(all_fluxes_daily, aes(x = avg_respT, y = flux.CH4, color = time_of_day))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  facet_wrap(~species_s, scales = "free_y")+
-  theme_classic()+
-  xlab("Temperature (C)")+
-  ylab("CH4 flux (umol/d/mound)")
-
-# calculate mound average for flux and temp 
-all_fluxes_daily$sampleTOD <- paste(all_fluxes_daily$sample, all_fluxes_daily$time_of_day, sep = "-")
-daily_avg <- all_fluxes_daily %>% group_by(sampleTOD) %>% 
-  summarise(mean_mound_fluxCH4=mean(flux.CH4),
-            mean_mound_fluxCO2=mean(flux.CO2_umol), 
-            mean_mound_fluxCH4_CO2=mean(CH4_CO2), 
-            time_of_day = time_of_day, 
-            species_s = species_s, 
-            temp = mean(avg_respT))
-daily_avg_f <- distinct(daily_avg)
-
-# temp by flux for species at mound-level average
-ggplot(daily_avg_f, aes(x = temp, y = mean_mound_fluxCH4, color = species_s))+
-  geom_point()+
-  geom_smooth(method = "lm")+
-  #facet_wrap(~species_s, scales = "free_y")+
-  theme_classic()+
-  xlab("Temperature (C)")+
-  ylab("CH4 flux (umol/d/mound)")
-
-# look at individual regressions for each species
-mod <- lm(mean_mound_fluxCH4 ~ temp, data = daily_avg_f[daily_avg_f$species_s == "C. acinaciformis", ])
-summary(mod)
-
-# temperature throughout daily cycle 
-all_fluxes_daily$flux_start_test <- strptime(all_fluxes_daily$flux_start, "%H:%M")
-ggplot(all_fluxes_daily, aes(x = as.POSIXct(flux_start_test), y = avg_respT))+
-  geom_point()+
-  theme_classic()+
-  theme(legend.position="none")+ 
-  xlab("Time of Day")+
-  ylab("Temperature (C)")
-
-# calculate Q10 (for each species) 
-
-# define linear relationship 
-ami_mod <- lm(mean_mound_fluxCH4 ~ temp, data = daily_avg_f[daily_avg_f$species_s == "A. laurensis", ])
-coefficients <- coef(ami_mod)
-paste("Amitermes CH4 flux =", round(coefficients[1], 2), "+", round(coefficients[2], 2), "* Temperature")
-cop_mod <- lm(mean_mound_fluxCH4 ~ temp, data = daily_avg_f[daily_avg_f$species_s == "C. acinaciformis", ])
-coefficients <- coef(cop_mod)
-paste("Coptotermes CH4 flux =", round(coefficients[1], 2), "+", round(coefficients[2], 2), "* Temperature")
-nas_mod <- lm(mean_mound_fluxCH4 ~ temp, data = daily_avg_f[daily_avg_f$species_s == "N. magnus", ])
-coefficients <- coef(nas_mod)
-paste("Nasutitermes CH4 flux =", round(coefficients[1], 2), "+", round(coefficients[2], 2), "* Temperature")
-
-# define 10C difference for process
-temp_low <- 20
-temp_high <- 30
-rate_low_temp <- 9072.65 + -66.76 * temp_low
-rate_high_temp <- 9072.65 + -66.76 * temp_high
-
-# Q10 function
-calculate_Q10 <- function(rate_low_temp, rate_high_temp, temp_low, temp_high) {
-  Q10 <- (rate_high_temp / rate_low_temp) ^ (10 / (temp_high - temp_low))
-  return(Q10)
-}
-
-Q10_ami <- calculate_Q10(rate_low_temp, rate_high_temp, temp_low, temp_high)
-Q10_cop <- calculate_Q10(rate_low_temp, rate_high_temp, temp_low, temp_high)
-Q10_nas <- calculate_Q10(rate_low_temp, rate_high_temp, temp_low, temp_high)
-```
-
-naked termites 
-```{r}
-# termite emission factor
-tef <- ggplot(all_fluxes_NT, aes(x = species, y = emission_factor, fill = species))+
-  geom_boxplot()+
-  geom_jitter()+
-  ylab("Termite EF (umol CH4/d/g termite)")+
-  xlab("")+
-  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
-  theme_classic()+
-  theme(legend.position = "none")
-
-# flux by material 
-mat_ch4 <- ggplot(all_fluxes_NT, aes(x = species, y = flux.CH4, fill = material))+
-  geom_boxplot()+
-  ylab("CH4 flux")+
-  xlab("")+
-  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
-  theme_classic()
-
-mat_co2 <- ggplot(all_fluxes_NT, aes(x = species, y = flux.CO2, fill = material))+
-  geom_boxplot()+
-  ylab("CO2 flux")+
-  xlab("")+
-  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
-  theme_classic()
-
-ggarrange(tef, mat_ch4, mat_co2, ncol = 1 )
 ```

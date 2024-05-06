@@ -149,6 +149,7 @@ all_fluxes_mound_avg <- all_fluxes_mound %>% group_by(ID_mound, sample, species_
             mean_mound_fluxCO2=mean(flux.CO2_umol), 
             mean_mound_fluxCH4_CO2=mean(CH4_CO2), 
             campaign = campaign, 
+            wall_thickness_mm = mean(wall_thickness_mm), 
             temp = mean(avg_respT), 
             precip_1mo = precip_1mo, 
             precip_2mo = precip_2mo, 

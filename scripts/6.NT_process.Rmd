@@ -84,7 +84,7 @@ data_clean <- data_clean %>%
 merge LGR files with metadata 
 ```{r}
 # complete merge for respiration data and metadata (aug)
-data_merge <- sqldf("select data_clean.fDOY, data_clean.CO2_dry, data_clean.CH4_dry, meta_TMI.ID, meta_TMI.material, meta_TMI.chunk, meta_TMI.avg_temp_C, meta_TMI.collar_volume_cm3, meta_TMI.mass_termite_g, meta_TMI.material_volume_cm3, meta_TMI.fDOY_start 
+data_merge <- sqldf("select data_clean.fDOY, data_clean.CO2_dry, data_clean.CH4_dry, meta_TMI.ID, meta_TMI.material, meta_TMI.chunk, meta_TMI.avg_temp_C, meta_TMI.collar_volume_cm3,  meta_TMI.mass_mound_material_g, meta_TMI.all_mass_g, meta_TMI.mass_termite_g, meta_TMI.material_volume_cm3, meta_TMI.fDOY_start 
 from data_clean LEFT JOIN meta_TMI ON (data_clean.fDOY BETWEEN meta_TMI.fDOY_start AND meta_TMI.fDOY_end)")
 
 # use 'complete.cases'
@@ -221,14 +221,19 @@ CO2_fluxfinal <- merge(fluxes.CO2, meta_TMI, by="Time_start")
 CH4_fluxfinal <- merge(fluxes.CH4, meta_TMI, by="Time_start")
 
 # generate summary table 
-CH4_summary <- CH4_fluxfinal[, c("chunk","species", "ID", "material", "mass_termite_g", "flux.CH4", "sd.CH4", "R2.CH4", "p.CH4", "Time_start", "fDOY_end")]
+CH4_summary <- CH4_fluxfinal[, c("chunk","species", "ID", "material", "all_mass_g", "mass_mound_material_g", "mass_termite_g", "flux.CH4", "sd.CH4", "R2.CH4", "p.CH4", "Time_start", "fDOY_end")]
 CO2_summary <- CO2_fluxfinal[, c("ID", "flux.CO2", "sd.CO2", "R2.CO2", "p.CO2")]
 flux_summary <- left_join(CH4_summary, CO2_summary, by = "ID")
 
-# define termite emission factors
+# define termite emission factors (TEF), mound emission factor (MEF), termite respiration factor (TRF), mound respiration factor (MRF)
 flux_summary <- flux_summary %>%
   group_by(chunk) %>%
-  mutate(emission_factor = ifelse(material == "T", flux.CH4 / mass_termite_g, NA))
+  mutate(TEF_umol_g_d = ifelse(material == "T", flux.CH4 / mass_termite_g, NA), 
+         MEF_umol_g_d = ifelse(material == "M", flux.CH4 / mass_mound_material_g, NA), 
+         AEF_umol_g_d = ifelse(material == "A", flux.CH4 / all_mass_g, NA), 
+         TRF_mmol_g_d = ifelse(material == "T", flux.CO2 / mass_termite_g, NA), 
+         MRF_mmol_g_d = ifelse(material == "M", flux.CO2 / mass_mound_material_g, NA), 
+         ARF_mmol_g_d = ifelse(material == "A", flux.CO2 / all_mass_g, NA))
 
 # clean out unusable samples 
 # remove first two coptotermes mounds NT07-09, NT10-12, NT0811TERM, 
@@ -383,76 +388,48 @@ zero_flux <- function(flux_summary_f, CH4_to_zero, assign_zeros_CH4) {
 flux_summary_f_zeroadj <- zero_flux(flux_summary_f, CH4_to_zero, assign_zeros_CH4)
 ```
 
+unit conversion and create proportional flux variables 
+```{r}
+# rename EF columns with correct units for comparison: go from umol CH4 g-1 d-1 --> ug CH4 g-1 h-1
+flux_summary_f_zeroadj$TEF_ug_g_h <- (flux_summary_f_zeroadj$TEF_umol_g_d*16.04)/24
+
+# proportional fluxes df
+p_fluxes <- flux_summary_f_zeroadj[c("chunk", "species", "mass_mound_material_g", "mass_termite_g", "material", "flux.CH4", "flux.CO2")]
+p_fluxes_f <- p_fluxes %>%
+  mutate(flux.CH4_A = ifelse(material == "A", flux.CH4, NA),
+         flux.CH4_T = ifelse(material == "T", flux.CH4, NA),
+         flux.CH4_M = ifelse(material == "M", flux.CH4, NA), 
+         flux.CO2_A = ifelse(material == "A", flux.CO2, NA),
+         flux.CO2_T = ifelse(material == "T", flux.CO2, NA),
+         flux.CO2_M = ifelse(material == "M", flux.CO2, NA), 
+         mass_termite_g = ifelse(mass_termite_g > 0, mass_termite_g, NA), 
+         mass_mound_material_g = ifelse(mass_mound_material_g > 0, mass_mound_material_g, NA))%>%
+  select(-material, -flux.CH4, -flux.CO2)%>%
+  group_by(chunk) %>%
+  filter_at(vars(-group_cols()), any_vars(!is.na(.))) %>%
+  summarise_all(~first(.[!is.na(.)]))
+
+# methane flux proportions (out of termite + microbe separate)
+p_fluxes_f$prop_T_CH4 <- p_fluxes_f$flux.CH4_T/(p_fluxes_f$flux.CH4_T+p_fluxes_f$flux.CH4_M)
+p_fluxes_f$prop_M_CH4 <- p_fluxes_f$flux.CH4_M/(p_fluxes_f$flux.CH4_T+p_fluxes_f$flux.CH4_M)
+
+# denominator is undisturbed termite + microbe (does less well in summing to 1)
+p_fluxes_f$prop_T_CH4_A <- p_fluxes_f$flux.CH4_T/(p_fluxes_f$flux.CH4_A)
+p_fluxes_f$prop_M_CH4_A <- p_fluxes_f$flux.CH4_M/(p_fluxes_f$flux.CH4_A)
+
+# carbon dioxide flux proportions (out of termite + microbe separate)
+p_fluxes_f$prop_T_CO2 <- p_fluxes_f$flux.CO2_T/(p_fluxes_f$flux.CO2_T+p_fluxes_f$flux.CO2_M)
+p_fluxes_f$prop_M_CO2 <- p_fluxes_f$flux.CO2_M/(p_fluxes_f$flux.CO2_T+p_fluxes_f$flux.CO2_M)
+
+# denominator is undisturbed termite + microbe (does less well in summing to 1)
+p_fluxes_f$prop_T_CO2_A <- p_fluxes_f$flux.CO2_T/(p_fluxes_f$flux.CO2_A)
+p_fluxes_f$prop_M_CO2_A <- p_fluxes_f$flux.CO2_M/(p_fluxes_f$flux.CO2_A)
+```
+
 EXPORT
 ```{r}
 ## Export fluxes as .csv file
 # write.csv(flux_summary_f_zeroadj, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_NT.csv", row.names = FALSE)
+
+# write.csv(p_fluxes_f, "/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/p_fluxes_f.csv", row.names = FALSE)
 ```
-
-#################
-DRAFT DRAFT DRAFT
-#################
-
-JUST MESSIN AROUND, MAN (aka open questions)
-```{r}
-# how much methane is oxidized
-meth_ox <- df_filtered %>%
-  group_by(chunk) %>%
-  mutate(all = ifelse(material == "A", flux.CH4, NA), 
-         termite = ifelse(material == "T", flux.CH4, NA)) 
-
-out <- meth_ox[c("chunk", "species", "all", "termite")]
-
-compiled_meth_ox <- out %>%
-  group_by(chunk) %>%
-  summarize_all(funs(trimws(paste(unique(na.omit(.)), collapse = ", ")))) %>%
-  ungroup()
-
-compiled_meth_ox$all <- as.numeric(compiled_meth_ox$all)
-compiled_meth_ox$termite <- as.numeric(compiled_meth_ox$termite)
-
-compiled_meth_ox$prop_ox <- (compiled_meth_ox$termite - compiled_meth_ox$all) / compiled_meth_ox$termite
-ggplot(compiled_meth_ox, aes(x = species, y = prop_ox, fill = species))+
-  geom_boxplot()+
-  geom_jitter()+
-  theme_classic()+
-  xlab("")+
-  theme(legend.position = "none")
-
-# test if these values are significantly different from zero? 
-
-# species means 
-detach(package:plyr)
-species_mean_ox <- compiled_meth_ox %>%
-  group_by(species) %>%
-  summarize(mean_ox = mean(prop_ox, na.rm = TRUE))
-
-# co2 proportions 
-co2_prop <- df_filtered %>%
-  group_by(chunk) %>%
-  mutate(all = ifelse(material == "A", flux.CO2, NA), 
-         termite = ifelse(material == "T", flux.CO2, NA)) 
-
-out <- co2_prop[c("chunk", "species", "all", "termite")]
-
-compiled_co2_prop <- out %>%
-  group_by(chunk) %>%
-  summarize_all(funs(trimws(paste(unique(na.omit(.)), collapse = ", ")))) %>%
-  ungroup()
-
-compiled_co2_prop$all <- as.numeric(compiled_co2_prop$all)
-compiled_co2_prop$termite <- as.numeric(compiled_co2_prop$termite)
-compiled_co2_prop$mound <- compiled_co2_prop$all - compiled_co2_prop$termite
-
-compiled_co2_prop_long <- pivot_longer(compiled_co2_prop, cols = 3:5 , names_to = "source", values_to = "CO2")
-
-ggplot(compiled_co2_prop_long, aes(x = species, y = CO2, fill = source))+
-  geom_boxplot()+
-  geom_jitter()+
-  theme_classic()+
-  xlab("")
-
-# looks like amitermes have little microbial production of co2, coptotermes has a lot of microbial respiration, and nasutitermes may have some kind of photosynthesis going on in the mound? 
-```
-
-
