@@ -124,7 +124,6 @@ Q3: How does the environment influence CH4 flux?
 ```{r}
 # OVER SEASON 
 # lmer(flux ~ temp + precip + species + (1|campaign) + (1|individual), data = )
-# create model for each species replicated over 4 measurement points 
 env_mod1 <- lmer(mean_mound_fluxCH4 ~ temp  + precip_1mo + species_s + (1|sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
 Anova(env_mod1)
 check_model(env_mod1)
@@ -134,7 +133,14 @@ AIC(env_mod1)
 # take out precip from model and compare AIC? 
 env_mod2 <- lmer(mean_mound_fluxCH4 ~ temp + species_s + (1|sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
 Anova(env_mod2)
-AIC(env_mod2) # precip does add something, so keep with env_mod1? 
+AIC(env_mod2) # precip increases AIC, therefore remove from env_mod1
+
+# same model but where each species is run separately
+sp_mod <- lmer(mean_mound_fluxCH4 ~ temp  + precip_1mo + (1|sample) + (1|campaign), data = all_fluxes_resample_reps_avg[all_fluxes_resample_reps_avg$species_s == "N. magnus",])
+Anova(sp_mod)
+check_model(sp_mod)
+ggpredict(sp_mod, terms = c("temp")) %>% plot(add.data = TRUE)
+AIC(sp_mod)
 ```
 
 Q4: How do mound microbial communities influence carbon gas flux? 
@@ -150,23 +156,12 @@ Q5: How do termite mound CH4 fluxes impact methane release at savanna landscape 
 Supplement
 ```{r}
 # INTRAMOUND VARIATION OF MOUND FLUX
-all_fluxes_mound$tag <- as.factor(all_fluxes_mound$tag) 
-all_fluxes_mound$position <- ifelse(all_fluxes_mound$position == "top ", "top", all_fluxes_mound$position)
-all_fluxes_mound$position <- as.factor(all_fluxes_mound$position) 
-
-# Fit linear mixed-effects model (which I think is best?)
-mod1 <- lmer(flux.CH4 ~ tag + species_s + (1 | ID_mound), data = all_fluxes_mound)
-Anova(mod1)
-check_model(mod1)
-ggpredict(mod1, terms = c("tag", "species_s")) %>% plot(add.data = TRUE)
-# no significant effect of tag with random effect included
-
-# calculate CoV for each mound
+# via CoV for each mound
 detach(package:plyr)
 cov <- all_fluxes_mound %>% group_by(ID_mound) %>% 
   summarize(mean = mean(flux.CH4), 
             sd = sd(flux.CH4),
-            cov = sd(flux.CH4) / mean(flux.CH4))
+            cov = sd(flux.CH4)/mean(flux.CH4)*100)
 
 # plot mean, sd, and cov
 mean <- ggplot(cov, aes(mean)) +
@@ -184,9 +179,7 @@ cov_p <- ggplot(cov, aes(cov)) +
 ggarrange(mean, sd, cov_p, ncol = 1)
 
 # how many mounds have high COV values?
-x <- cov[cov$cov > 1, ] # cov = 1 means that sd = mean 
-
-# if intramound variation is not significant - calculate overall mound average and use this in further analyses
+x <- cov[cov$cov > 30, ] # cov = 100 means that sd = mean, cov = 30 is considered high
 
 # TIME OF DAY AND FLUX
 ```
@@ -195,6 +188,20 @@ x <- cov[cov$cov > 1, ] # cov = 1 means that sd = mean
 
 ### DRAFT ###
 
+```{r}
+all_fluxes_mound$tag <- as.factor(all_fluxes_mound$tag) 
+all_fluxes_mound$position <- ifelse(all_fluxes_mound$position == "top ", "top", all_fluxes_mound$position)
+all_fluxes_mound$position <- as.factor(all_fluxes_mound$position) 
+
+# Fit linear mixed-effects model (which I think is best?)
+mod1 <- lmer(flux.CH4 ~ tag + species_s + (1 | ID_mound), data = all_fluxes_mound)
+Anova(mod1)
+check_model(mod1)
+ggpredict(mod1, terms = c("tag", "species_s")) %>% plot(add.data = TRUE)
+# no significant effect of tag with random effect included
+
+
+```
 
 variance partitioning from predictors of multiple regression models
 see: https://cran.r-project.org/web/packages/partR2/vignettes/Using_partR2.html
