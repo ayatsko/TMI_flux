@@ -16,79 +16,22 @@ library(patchwork)
 
 data load 
 ```{r}
-# Q1
-all_fluxes_mound_avg <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound_avg.csv")
-all_fluxes_mound <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound.csv")
-
-# Q2 
 all_fluxes_NT <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_NT.csv")
 p_fluxes_f <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/p_fluxes_f.csv")
-
-# Q3
+all_fluxes_mound_avg <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound_avg.csv")
+all_fluxes_mound <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound.csv")
 all_fluxes_seasonal_avg <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_resample_reps_avg.csv")
 
-# Q4
-
-# Supplement
+# supplement (?)
 all_fluxes_daily <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_daily_fluxes.csv")
 ```
 
-Q1: How do mound properties influence CH4 flux? 
+Q1: How do termites differ in carbon gas flux? 
 ```{r}
-# SIZE
-# reorder levels of campaigns 
-all_fluxes_mound_avg$campaign <- factor(all_fluxes_mound_avg$campaign, levels = c("may22", "aug23", "nov22", "feb24"))
-
-# methane flux (whole mound) by mound size 
-ggplot(all_fluxes_mound_avg, aes(x = basal_area_m2, y = mound_CH4flux, color = species_s)) + # swap out basal_area_m2, color = campaign
-  geom_point()+ 
-  geom_smooth(method = 'lm')+
-  facet_wrap(~species_s, scales = "free")+ 
-  scale_color_brewer(palette = "Dark2")+
-  theme_classic()+
-  ylab("Mean mound CH4 flux (umol/d/mound)") +
-  xlab("Mound surface area (m2)")+
-  theme(legend.position = "none")
-
-# average mound size by species
-ggplot(all_fluxes_mound_avg, aes(x = species_s, y = SA_m2, fill = species_s))+ # swap out basal_area_m2
-  geom_boxplot()+
-  theme_classic()+
-  xlab("")+
-  ylab("Mound surface area (m2)")+
-  scale_fill_brewer(palette = "Dark2")+
-  theme(legend.position = "none")
-
-# WALL THICKNESS
-wt <- all_fluxes_mound[!is.na(all_fluxes_mound$wall_thickness_mm), ]
-
-# calculate average mound wall thickness
-wt_avg <- wt %>% group_by(ID_mound, sample, species_s) %>% 
-  summarise(mean_mound_fluxCH4=mean(flux.CH4),
-            mean_mound_fluxCO2=mean(flux.CO2_umol), 
-            mean_mound_fluxCH4_CO2=mean(CH4_CO2), 
-            campaign = campaign, 
-            temp = mean(avg_respT), 
-            precip_1mo = precip_1mo, 
-            wall_thickness_mm = mean(wall_thickness_mm))
-wt_mound_avg <- distinct(wt_avg)
-
-ggplot(wt_mound_avg, aes(x = wall_thickness_mm, y = mean_mound_fluxCH4, color = species_s)) +
-  geom_point()+ 
-  geom_smooth(method = "lm")+
-  theme_classic()+
-  ylab("CH4 flux umol/d/m2")+
-  xlab("Mound wall thickness (mm)")+
-  ggtitle("Average mound wall thickness")+
-  scale_color_brewer(palette = "Dark2")+
-  theme(legend.position = "bottom")
-```
-
-Q2: How do termites differ in carbon gas flux? 
-```{r}
+# a) INDIVIDUAL TERMITES 
 # TEF 
 ggplot(all_fluxes_NT, aes(x = species, y = TEF_ug_g_h, fill = species))+
-  geom_boxplot()+
+  geom_boxplot(outlier.shape = NA)+
   geom_jitter()+
   ylab("Termite EF (ug CH4/hr/g termite)")+
   xlab("")+
@@ -105,8 +48,7 @@ df_long <- df %>%
                names_pattern = "prop_(.*)_(.*)") %>%
   pivot_longer(cols = c(T, M), 
                names_to = "material", 
-               values_to = "prop") %>%
-  rename(species = species)
+               values_to = "prop") 
 
 ch4 <- ggplot(df_long[df_long$flux == "CH4",], aes(x = species, y = prop, fill = material))+
   geom_boxplot()+
@@ -136,20 +78,150 @@ ggplot(p_fluxes_f, aes(x = species, y = termite_mound_ratio, fill = species))+
   scale_fill_brewer(palette = "Dark2")+
   theme_classic()+
   theme(legend.position = "none")
+
+# b) TERMITE MOUNDS 
+ggplot(all_fluxes_mound_avg, aes(x = species_s, y = mean_mound_fluxCH4, fill = species_s)) + 
+  geom_boxplot()+ 
+  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
+  theme_classic()+
+  ylab("CH4 flux umol/d/m2")+
+  xlab("")+
+  scale_fill_brewer(palette = "Dark2")+
+  theme(legend.position = "none")
+
+# test tests 
+# a) one way anova 
+aov1 <- aov(TEF_ug_g_h ~ species, data = all_fluxes_NT)
+summary(aov1) # decent model, assumption checks are good 
+TukeyHSD(aov1) # all species are significantly different 
+
+# b) one way anova (unequal sample sizes)
+aov2 <- aov(mean_mound_fluxCH4 ~ species_s, data = all_fluxes_mound_avg)
+summary(aov2) # normality and HoV dont look great 
+
+kruskal.test(mean_mound_fluxCH4 ~ species_s, data = all_fluxes_mound_avg)
+dunn.test(all_fluxes_mound_avg$mean_mound_fluxCH4, all_fluxes_mound_avg$species_s, method = "bonferroni") # N. magnus different to laurensis, acinaciformis
+```
+
+Q2: How do mound properties influence CH4 flux? 
+```{r}
+# a) MOUND SIZE
+# reorder levels of campaigns 
+all_fluxes_mound_avg$campaign <- factor(all_fluxes_mound_avg$campaign, levels = c("may22", "aug23", "nov22", "feb24"))
+
+# methane flux (whole mound) by mound size 
+ggplot(all_fluxes_mound_avg, aes(x = SA_m2, y = mound_CH4flux, color = species_s)) + # swap out basal_area_m2, color = campaign
+  geom_point()+ 
+  geom_smooth(method = 'lm')+
+  facet_wrap(~species_s, scales = "free")+ 
+  scale_color_brewer(palette = "Dark2")+
+  theme_classic()+
+  ylab("Total mound CH4 flux (umol/d/mound)") +
+  xlab("Mound surface area (m2)")+
+  theme(legend.position = "none")
+
+# average mound size by species
+ggplot(all_fluxes_mound_avg, aes(x = species_s, y = SA_m2, fill = species_s))+ # swap out basal_area_m2
+  geom_boxplot()+
+  theme_classic()+
+  xlab("")+
+  ylab("Mound surface area (m2)")+
+  scale_fill_brewer(palette = "Dark2")+
+  theme(legend.position = "none")
+
+# b) WALL THICKNESS
+wt <- all_fluxes_mound[!is.na(all_fluxes_mound$wall_thickness_mm), ]
+wt$sample <- as.factor(wt$sample)
+# calculate average mound wall thickness
+# wt_avg <- wt %>% group_by(ID_mound, sample, species_s) %>% 
+#   summarise(mean_mound_fluxCH4=mean(flux.CH4),
+#             mean_mound_fluxCO2=mean(flux.CO2_umol), 
+#             mean_mound_fluxCH4_CO2=mean(CH4_CO2), 
+#             campaign = campaign, 
+#             temp = mean(avg_respT), 
+#             precip_1mo = precip_1mo, 
+#             wall_thickness_mm = mean(wall_thickness_mm))
+# wt_mound_avg <- distinct(wt_avg)
+
+ggplot(wt, aes(x = wall_thickness_mm, y = flux.CH4, color = species_s)) +
+  geom_point()+ 
+  geom_smooth(method = "lm")+
+  facet_wrap(~species_s, scales = "free")+ 
+  theme_classic()+
+  ylab("CH4 flux umol/d/m2")+
+  xlab("Mound wall thickness (mm)")+
+  ggtitle("Average mound wall thickness")+
+  scale_color_brewer(palette = "Dark2")+
+  theme(legend.position = "bottom")
+
+# test tests (run separate for each species)?
+# a) lmer (random effects: sample, campaign/temp/precip_1mo)
+species_list <- split(all_fluxes_mound_avg, all_fluxes_mound_avg$species_s)
+
+run_model <- function(data) {
+  lmer(log(mound_CH4flux) ~ SA_m2 + (1 | sample) + (1 | campaign), data = data)
+}
+
+models <- lapply(species_list, run_model)
+lapply(models, Anova)
+
+# b) lmer (random effects: sample)
+# if log-transforming: need to adjust negative values (only 7 cases) to really small numbers (or eventually omit?)
+# wt <- wt %>%
+#   mutate(flux.CH4 = ifelse(flux.CH4 < 0, 0.00001, flux.CH4))
+
+species_list2 <- split(wt, wt$species_s)
+
+run_model2 <- function(data) {
+  lmer(flux.CH4 ~ wall_thickness_mm + (1 | sample), data = data)
+}
+
+models <- lapply(species_list2, run_model2)
+lapply(models, check_model)
+
 ```
 
 Q3: How does the environment influence CH4 flux? 
 ```{r}
-# OVER SEASON 
-ggplot(all_fluxes_seasonal_avg, aes(x = temp, y = mean_mound_fluxCH4, color = species_s))+
+# a) seasonal comparison 
+all_fluxes_seasonal_avg$campaign <- factor(all_fluxes_seasonal_avg$campaign, levels = c("may22", "aug23", "nov22", "feb24"))
+all_fluxes_seasonal_avg$species_s <- as.factor(all_fluxes_seasonal_avg$species_s)
+
+ggplot(all_fluxes_seasonal_avg, aes(x = species_s, y = mean_mound_fluxCH4, fill = campaign))+
+  geom_boxplot()+
+  ylab("CH4 flux umol/d/m2")+
+  xlab("")+
+  scale_fill_manual(values = c("may22" = "#1b9e77", "aug23" = "#d95f02", "nov22" =
+                                 "#7570b3", "feb24" = "#e7298a"),
+                    labels = c("Wet-to-dry", "Mid-dry", "Dry-to-wet", "Mid-wet")) +
+  theme_classic()
+
+# test tests
+# a) lmer (sample as random factor)
+mod <- lmer(mean_mound_fluxCH4 ~ species_s*campaign + (1 | sample), data = all_fluxes_seasonal_avg)
+Anova(mod)
+check_model(mod) # what to do about high colinearity? 
+# posthoc pairwise comparisons
+emmeans(mod, pairwise ~ species_s | campaign)
+emmeans(mod, pairwise ~ campaign | species_s)
+
+# b) environmental conditions (temperature and precipitation) 
+ggplot(all_fluxes_seasonal_avg, aes(x = temp, y = mean_mound_fluxCH4, color = campaign))+
   geom_point()+
+  facet_wrap(~species_s)+
   geom_smooth(method = 'lm', se = TRUE)+
   ylab("CH4 flux umol/d/m2")+
   xlab("Average Mound Surface Temperature (C)")+
   scale_color_brewer(palette = "Dark2")+
   theme_classic()
 
-# temperature changes throughout the year
+# model with temperature, species, and campaign
+mod2 <- lmer(mean_mound_fluxCH4 ~ temp + species_s + campaign + (1 | sample), data = all_fluxes_seasonal_avg)
+Anova(mod2)
+check_model(mod2)
+ggpredict(mod2, terms = c("temp", "campaign", "species_s")) %>% plot(add.data = TRUE)
+
+# temperatures by campaign - this just shows seasonal variability
 ggplot(all_fluxes_mound_avg, aes(x = campaign, y = temp, fill = campaign))+
   geom_boxplot()+
   geom_jitter()+
@@ -158,6 +230,24 @@ ggplot(all_fluxes_mound_avg, aes(x = campaign, y = temp, fill = campaign))+
   scale_fill_brewer(palette = "Dark2")+
   theme_classic()+
   theme(legend.position = "none")
+
+aov <- aov(temp ~ campaign, data = all_fluxes_mound_avg)
+summary(aov) # assumptions ok on check_model(aov) 
+TukeyHSD(aov) # all comparisons are significantly different 
+
+
+
+
+
+
+
+
+
+
+
+
+
+## WORKING EXTRAS ##
 
 # temperature changes throughout the day
 t <- all_fluxes_mound[all_fluxes_mound$campaign %in% c("nov22", "aug23", "feb24"),]
