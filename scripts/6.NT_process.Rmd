@@ -221,7 +221,7 @@ CO2_fluxfinal <- merge(fluxes.CO2, meta_TMI, by="Time_start")
 CH4_fluxfinal <- merge(fluxes.CH4, meta_TMI, by="Time_start")
 
 # generate summary table 
-CH4_summary <- CH4_fluxfinal[, c("chunk","species", "ID", "material", "all_mass_g", "mass_mound_material_g", "mass_termite_g", "flux.CH4", "sd.CH4", "R2.CH4", "p.CH4", "Time_start", "fDOY_end")]
+CH4_summary <- CH4_fluxfinal[, c("chunk","species", "ID", "material", "all_mass_g", "mass_mound_material_g", "mass_termite_g", "material_volume_cm3", "flux.CH4", "sd.CH4", "R2.CH4", "p.CH4", "Time_start", "fDOY_end")]
 CO2_summary <- CO2_fluxfinal[, c("ID", "flux.CO2", "sd.CO2", "R2.CO2", "p.CO2")]
 flux_summary <- left_join(CH4_summary, CO2_summary, by = "ID")
 
@@ -244,7 +244,7 @@ flux_summary_f <- subset(flux_summary, !ID %in% rm)
 preliminary viz 
 ```{r}
 # emission factor
-ggplot(flux_summary_f, aes(x = species, y = emission_factor, fill = species))+
+ggplot(flux_summary_f, aes(x = species, y = TEF_umol_g_d, fill = species))+
   geom_boxplot()+
   geom_jitter()+
   theme_classic()+
@@ -394,7 +394,7 @@ unit conversion and create proportional flux variables
 flux_summary_f_zeroadj$TEF_ug_g_h <- (flux_summary_f_zeroadj$TEF_umol_g_d*16.04)/24
 
 # proportional fluxes df
-p_fluxes <- flux_summary_f_zeroadj[c("chunk", "species", "mass_mound_material_g", "mass_termite_g", "material", "flux.CH4", "flux.CO2")]
+p_fluxes <- flux_summary_f_zeroadj[c("chunk", "species", "mass_termite_g", "material_volume_cm3", "material", "TEF_umol_g_d", "TEF_ug_g_h", "flux.CH4", "flux.CO2")]
 p_fluxes_f <- p_fluxes %>%
   mutate(flux.CH4_A = ifelse(material == "A", flux.CH4, NA),
          flux.CH4_T = ifelse(material == "T", flux.CH4, NA),
@@ -403,7 +403,9 @@ p_fluxes_f <- p_fluxes %>%
          flux.CO2_T = ifelse(material == "T", flux.CO2, NA),
          flux.CO2_M = ifelse(material == "M", flux.CO2, NA), 
          mass_termite_g = ifelse(mass_termite_g > 0, mass_termite_g, NA), 
-         mass_mound_material_g = ifelse(mass_mound_material_g > 0, mass_mound_material_g, NA))%>%
+         TEF_umol_g_d = ifelse(TEF_umol_g_d > 0, TEF_umol_g_d, NA),
+         TEF_ug_g_h = ifelse(TEF_ug_g_h > 0, TEF_ug_g_h, NA),
+         material_volume_cm3 = ifelse(material_volume_cm3 > 0, material_volume_cm3, NA)) %>%
   select(-material, -flux.CH4, -flux.CO2)%>%
   group_by(chunk) %>%
   filter_at(vars(-group_cols()), any_vars(!is.na(.))) %>%

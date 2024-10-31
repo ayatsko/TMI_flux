@@ -23,7 +23,7 @@ library(splines)
 
 data load 
 ```{r}
-all_fluxes_NT <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_NT.csv")
+# all_fluxes_NT <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_NT.csv")
 p_fluxes_f <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/p_fluxes_f.csv")
 all_fluxes_mound_avg <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound_avg.csv")
 all_fluxes_mound <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound.csv")
@@ -33,11 +33,10 @@ all_fluxes_seasonal_avg <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/d
 all_fluxes_daily <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_daily_fluxes.csv")
 ```
 
-Q1: How does CH4 flux vary for different termite species, at the a) individual termite and b) mound level?
+Termite fluxes with/without the context of their environment
 ```{r}
-# a) INDIVIDUAL LEVEL 
-# TEF 
-ggplot(all_fluxes_NT, aes(x = species, y = TEF_ug_g_h, fill = species))+
+# Q1: How does TEF vary across study species (fluxes from individuals)
+a <- ggplot(p_fluxes_f, aes(x = species, y = TEF_ug_g_h, fill = species))+
   geom_boxplot(outlier.shape = NA)+
   geom_jitter()+
   ylab("Termite EF (ug CH4/hr/g termite)")+
@@ -47,27 +46,46 @@ ggplot(all_fluxes_NT, aes(x = species, y = TEF_ug_g_h, fill = species))+
   theme_classic()+
   theme(legend.position = "none")
 
-# test for differences between species 
-mod <- aov(TEF_ug_g_h ~ species, data = all_fluxes_NT)
-summary(mod)
-# determine which species are different
-emmeans(mod, pairwise ~ species)
-
-# b) MOUND LEVEL
-ggplot(all_fluxes_mound_avg, aes(x = species_s, y = mean_mound_fluxCH4, fill = species_s)) + 
+# Q2: How do mound fluxes vary across study species (mean fluxes from the mound)
+b <- ggplot(all_fluxes_mound_avg, aes(x = species_s, y = mean_mound_fluxCH4*0.6683, fill = species_s)) + #  multiuple µmol CH₄/day by 0.6683
   geom_boxplot()+ 
+  geom_jitter()+
   scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
   theme_classic()+
-  ylab("CH4 flux umol/d/m2")+
+  ylab("Mean mound CH4 flux (ug CH4/hr/m2)")+
   xlab("")+
   scale_fill_brewer(palette = "Dark2")+
   theme(legend.position = "none")
 
-# test for differences between species 
-mod <- aov(mean_mound_fluxCH4 ~ species_s, data = all_fluxes_mound_avg)
-summary(mod)
-# determine which species are different
-emmeans(mod, pairwise ~ species_s)
+# What are the fluxes associated with termites in the mound vs. termites isolated from mound
+# select columns from p_fluxes_f
+NT_ch4_long <- p_fluxes_f %>% select(species, flux.CH4_A, flux.CH4_T, flux.CH4_M)
+NT_ch4_long <- gather(NT_ch4_long, key = "source", value = "flux", -species)
+NT_ch4_long$source <- factor(NT_ch4_long$source, levels = c("flux.CH4_A", "flux.CH4_T", "flux.CH4_M"))
+
+NT_co2_long <- p_fluxes_f %>% select(species, flux.CO2_A, flux.CO2_T, flux.CO2_M)
+NT_co2_long <- gather(NT_co2_long, key = "source", value = "flux", -species)
+NT_co2_long$source <- factor(NT_co2_long$source, levels = c("flux.CO2_A", "flux.CO2_T", "flux.CO2_M"))
+
+c <- ggplot(NT_ch4_long, aes(x = species, y = flux, fill = source))+
+  geom_boxplot(outlier.shape = NA)+
+  geom_jitter()+
+  ylab("CH4 flux (umol/d/m2)")+
+  xlab("")+
+  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
+  scale_fill_brewer(palette = "RdYlGn", labels = c("T+M", "T", "M"))+
+  theme_classic()
+
+d <- ggplot(NT_co2_long, aes(x = species, y = flux, fill = source))+
+  geom_boxplot(outlier.shape = NA)+
+  geom_jitter()+
+  ylab("CO2 flux (mmol/d/m2)")+
+  xlab("")+
+  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
+  scale_fill_brewer(palette = "RdYlGn", labels = c("T+M", "T", "M"))+
+  theme_classic()
+
+ggarrange(a, c, b, d)
 ```
 
 Q2: How does CH4 flux change for different mound properties: a) mound size and b) wall thickness
@@ -87,7 +105,7 @@ summary(mod)
 emmeans(mod, pairwise ~ species_s)
 
 # methane flux (whole mound) by mound size 
-ggplot(all_fluxes_mound_avg, aes(x = SA_m2, y = mound_CH4flux, color = species_s)) + # swap out basal_area_m2, color = campaign
+ggplot(all_fluxes_mound_avg, aes(x = SA_m2, y = mean_mound_fluxCH4, color = species_s)) + # swap out basal_area_m2, color = campaign
   geom_point()+ 
   geom_smooth(method = 'lm')+
   facet_wrap(~species_s, scales = "free")+ 
@@ -284,6 +302,7 @@ ggplot(new_data, aes(x = temp, y = predicted_flux, color = campaign)) +
   ) +
   theme_minimal() +
   theme(legend.position = "bottom")
+
 ```
 
 

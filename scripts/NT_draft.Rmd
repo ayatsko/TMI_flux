@@ -1,0 +1,51 @@
+---
+title: "Untitled"
+author: "abbey yatsko"
+date: "2024-10-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+
+```
+
+data load
+```{r}
+NT <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_NT.csv")
+meta_TMI <- read.csv('/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/NT/arduino_files/NTmetadata.csv')
+
+# select only ID and material_volume_cm3 from meta_TMI
+meta_TMI <- meta_TMI[, c("ID", "material_volume_cm3")]
+
+# merge based on ID
+NT <- merge(NT, meta_TMI, by = "ID")
+```
+
+# percentage termite biomass in a given volume 
+```{r}
+# filter for material = T 
+NT_T <- NT %>% filter(material == "T" | material == "A")
+NT_T$chunk <- as.factor(NT_T$chunk)
+
+# for each unique chunk, create a column for material_volume_cm3 and mass_termite_g
+out <- NT_T %>%
+  group_by(chunk, species) %>%
+  summarize(
+    mass_termite_g = max(mass_termite_g[mass_termite_g > 0], na.rm = TRUE),
+    material_volume_cm3 = max(material_volume_cm3[material_volume_cm3 > 0], na.rm = TRUE), 
+    percent_T = mass_termite_g / material_volume_cm3 * 100
+  )
+
+# boxplot by species
+ggplot(out, aes(x = species, y = percent_T, color = species)) +
+  geom_boxplot() +
+  labs(title = "Percentage termite biomass in a given volume",
+       x = "Species",
+       y = "Percentage termite biomass (%)")+
+  theme_classic()+
+  theme(legend.position = "none")
+
+```
+

@@ -41,6 +41,16 @@ all_fluxes_mound <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/fin
 
 ```
 
+
+```{r}
+# test for differences between species 
+mod <- aov(TEF_ug_g_h ~ species, data = all_fluxes_NT)
+summary(mod)
+# determine which species are different
+emmeans(mod, pairwise ~ species)
+```
+
+
 Q1: How do mound properties influence CH4 flux? 
 ```{r}
 # SIZE
