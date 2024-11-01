@@ -23,257 +23,101 @@ library(patchwork)
 
 data load 
 ```{r}
-# Q1 
-all_fluxes_mound_avg <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound_avg.csv")
-
-# Q2 
-all_fluxes_NT <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_NT.csv")
 p_fluxes_f <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/p_fluxes_f.csv")
+all_fluxes_mound_avg <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound_avg.csv")
+all_fluxes_mound <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound.csv")
 
-# Q3 
+
+
+
+
+
 all_fluxes_resample_reps_avg <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_resample_reps_avg.csv")
 
-# Q4 
-
-# Supplement
 all_fluxes_daily <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_daily_fluxes.csv")
-all_fluxes_mound <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound.csv")
 
 ```
 
-
+Termite fluxes with/without the context of their environment
 ```{r}
+# Q1: How does TEF vary across study species (fluxes from individuals)
 # test for differences between species 
-mod <- aov(TEF_ug_g_h ~ species, data = all_fluxes_NT)
+mod <- aov(TEF_ug_g_h ~ species, data = p_fluxes_f)
 summary(mod)
 # determine which species are different
 emmeans(mod, pairwise ~ species)
+
+# Q2: How do mound fluxes vary across study species (mean fluxes from the mound)
+mod <- aov(mean_mound_fluxCH4 ~ species_s, data = all_fluxes_mound_avg)
+summary(mod)
+emmeans(mod, pairwise ~ species_s)
+
+# Q3: What are the fluxes associated with termites in the mound vs. termites outside mound
+
 ```
 
-
-Q1: How do mound properties influence CH4 flux? 
+How do mound traits contribute to CH4 flux? 
 ```{r}
-# SIZE
-m1 <- lmer(mound_CH4flux ~ SA_m2 + species_s + (1 | campaign) + (1 | sample), data = all_fluxes_mound_avg)
-Anova(m1)
-report(m1)
-
-# ANCOVA 
-model.1 <- lm(mound_CH4flux ~ SA_m2 + species_s + SA_m2:species_s, data = all_fluxes_mound_avg)
-anova(model.1) # interaction is significant - this means that ancova model isnt appropriate?
-
-model.2 <- lm(mound_CH4flux ~ SA_m2 + species_s, data = all_fluxes_mound_avg)
-anova(model.2)
-
-anova(model.1, model.2) # significant differences between 1 and 2 
-
-# individual species regressions 
-a_size <- lmer(mound_CH4flux ~ SA_m2 + (1 | campaign) + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s == "A. laurensis",])
-summary(a_size)
-
-c_size <- lmer(mound_CH4flux ~ SA_m2 + (1 | campaign) + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s == "C. acinaciformis",])
-summary(c_size)
-
-n_size <- lmer(mound_CH4flux ~ SA_m2 + (1 | campaign) + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s == "N. magnus",])
-summary(n_size)
-
-n_size <- lm(mound_CH4flux ~ SA_m2, data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s == "N. magnus",])
-summary(n_size)
-
-# WALL THICKNESS
+# Q1: What is the relationship between mound wall thickness and CH4 flux? 
+# flux influenced by wall thickness
 wt <- all_fluxes_mound[!is.na(all_fluxes_mound$wall_thickness_mm), ]
-wt_avg <- wt %>% group_by(ID_mound, sample, species_s) %>% 
-  summarise(mean_mound_fluxCH4=mean(flux.CH4),
-            mean_mound_fluxCO2=mean(flux.CO2_umol), 
-            mean_mound_fluxCH4_CO2=mean(CH4_CO2), 
-            campaign = campaign, 
-            temp = mean(avg_respT), 
-            precip_1mo = precip_1mo, 
-            wall_thickness_mm = mean(wall_thickness_mm))
-wt_mound_avg <- distinct(wt_avg)
+wt$sample <- as.factor(wt$sample)
 
-# ANCOVA
-model.3 <- lm(mean_mound_fluxCH4 ~ wall_thickness_mm + species_s + wall_thickness_mm:species_s, data = wt_mound_avg)
-anova(model.3) # interaction is NOT significant - good to use? 
+mod <-  lmer(flux.CH4 ~ wall_thickness_mm + (1 | species_s) + (1 | sample), data = wt)
+summary(mod)
+Anova(mod)
+ggpredict(mod, terms = c("wall_thickness_mm")) %>% plot(add.data = TRUE)
 
-model.4 <-lm(mean_mound_fluxCH4 ~ wall_thickness_mm + species_s, data = wt_mound_avg)
-anova(model.4)
+# look at relationship just for coptotermes
+mod <-  lmer(flux.CH4 ~ wall_thickness_mm + (1 | sample), data = wt[wt$species_s == "C. acinaciformis",])
+Anova(mod)
 
-anova(model.3, model.4) # no significant differences between 3 and 4
+# average wall thickness by species
+mod <- aov(wall_thickness_mm ~ species_s, data = wt)
+summary(mod)
+emmeans(mod, pairwise ~ species_s)
 
-# individual species regressions 
-a_wt <- lm(mean_mound_fluxCH4 ~ wall_thickness_mm, data = wt_mound_avg[wt_mound_avg$species_s == "A. laurensis",])
-summary(a_wt)
+# Q2: What is the relationship between mound size and CH4 flux? 
+# whole mound methane flux mound size (basal_area_m2, sa_m2_final, volume_m3_final)
+mod <- lmer(mound_CH4flux ~ volume_m3_final + (1 | species_s) + (1 | sample), data = all_fluxes_mound_avg)
+summary(mod)
+Anova(mod)
+ggpredict(mod, terms = c("volume_m3_final")) %>% plot(add.data = TRUE)
 
-c_wt <- lm(mean_mound_fluxCH4 ~ wall_thickness_mm, data = wt_mound_avg[wt_mound_avg$species_s == "C. acinaciformis",])
-summary(c_wt)
+# test differences between species 
+mod <- lmer(mound_CH4flux ~ volume_m3_final*species_s + (1 | sample), data = all_fluxes_mound_avg)
+Anova(mod)
+mod_ami <- lmer(mound_CH4flux ~ volume_m3_final + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s =="A. laurensis",])
+mod_cop <- lmer(mound_CH4flux ~ volume_m3_final + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s =="C. acinaciformis",])
+mod_nas <- lmer(mound_CH4flux ~ volume_m3_final + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s =="N. magnus",])
+summary(mod_nas)
 
-n_wt <- lm(mean_mound_fluxCH4 ~ wall_thickness_mm + (1 | campaign) + (1 | sample), data = wt_mound_avg[wt_mound_avg$species_s == "N. magnus",])
-summary(n_wt)
+# average mound size by species
+mod <- aov(volume_m3_final ~ species_s, data = all_fluxes_mound_avg)
+summary(mod)
+emmeans(mod, pairwise ~ species_s)
+
+# Q3: What is the relationship between mound volume, termite biomass, and CH4 flux? 
+
 ```
 
-Q2: How do termites differ in carbon gas flux? 
+How do seasons and temperature effect CH4 flux?
 ```{r}
-# species averaged TEF for comparison 
-detach(package:plyr)
-EF_avg <- all_fluxes_NT %>%
-  group_by(species) %>%
-  summarize(mean_CH4flux = mean(TEF_ug_g_h, na.rm = TRUE),
-            sd_CH4flux = sd(TEF_ug_g_h, na.rm = TRUE))
+# Q1: How does CH4 flux change by season?
+mod <- lmer(mean_mound_fluxCH4 ~ campaign + (1 | species_s) + (1 | sample), data = all_fluxes_seasonal_avg)
+summary(mod)
+emm <- emmeans(mod, ~ campaign)
+pairs(emm)
 
-# species-level summary of proportional flux
-species_flux_prop <- p_fluxes_f %>%
-  group_by(species) %>%
-  summarize(mean_T_CH4 = mean(prop_T_CH4), 
-            mean_M_CH4 = mean(prop_M_CH4),
-            mean_T_CO2 = mean(prop_T_CO2), 
-            mean_M_CO2 = mean(prop_M_CO2))
+# Q2: How does CH4 flux change by temperature?
+# LINEAR
+mod <- lmer(mean_mound_fluxCH4 ~ temp + campaign + (1 | sample) + (1 | species_s), data = all_fluxes_seasonal_avg)
+Anova(mod)
+
+# POLYNOMIAL 
+mod_poly <- lmer(mean_mound_fluxCH4 ~ poly(temp, 2) + campaign + (1 | sample) + (1 | species_s), data = all_fluxes_seasonal_avg)
+Anova(mod_poly)
+residuals <- resid(mod_poly)
+fitted_values <- fitted(mod_poly)
 ```
 
-Q3: How does the environment influence CH4 flux? 
-```{r}
-# OVER SEASON 
-# lmer(flux ~ temp + precip + species + (1|campaign) + (1|individual), data = )
-env_mod1 <- lmer(mean_mound_fluxCH4 ~ temp  + precip_1mo + species_s + (1|sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
-Anova(env_mod1)
-check_model(env_mod1)
-ggpredict(env_mod1, terms = c("temp", "species_s")) %>% plot(add.data = TRUE)
-AIC(env_mod1)
-
-# take out precip from model and compare AIC? 
-env_mod2 <- lmer(mean_mound_fluxCH4 ~ temp + species_s + (1|sample) + (1|campaign), data = all_fluxes_resample_reps_avg)
-Anova(env_mod2)
-AIC(env_mod2) # precip increases AIC, therefore remove from env_mod1
-
-# same model but where each species is run separately
-sp_mod <- lmer(mean_mound_fluxCH4 ~ temp  + precip_1mo + (1|sample) + (1|campaign), data = all_fluxes_resample_reps_avg[all_fluxes_resample_reps_avg$species_s == "N. magnus",])
-Anova(sp_mod)
-check_model(sp_mod)
-ggpredict(sp_mod, terms = c("temp")) %>% plot(add.data = TRUE)
-AIC(sp_mod)
-```
-
-Q4: How do mound microbial communities influence carbon gas flux? 
-```{r}
-
-```
-
-Q5: How do termite mound CH4 fluxes impact methane release at savanna landscape scales?
-```{r}
-
-```
-
-Supplement
-```{r}
-# INTRAMOUND VARIATION OF MOUND FLUX
-# via CoV for each mound
-detach(package:plyr)
-cov <- all_fluxes_mound %>% group_by(ID_mound) %>% 
-  summarize(mean = mean(flux.CH4), 
-            sd = sd(flux.CH4),
-            cov = sd(flux.CH4)/mean(flux.CH4)*100)
-
-# plot mean, sd, and cov
-mean <- ggplot(cov, aes(mean)) +
-  geom_histogram(aes(y=after_stat(density)), colour="black", fill="white")+
-  geom_density(alpha=.2, fill="#FF6666") +
-  theme_classic()
-sd <- ggplot(cov, aes(sd)) +
-  geom_histogram(aes(y=after_stat(density)), colour="black", fill="white")+
-  geom_density(alpha=.2, fill="#FF6666") +
-  theme_classic()
-cov_p <- ggplot(cov, aes(cov)) +
-  geom_histogram(aes(y=after_stat(density)), colour="black", fill="white")+
-  geom_density(alpha=.2, fill="#FF6666") +
-  theme_classic()
-ggarrange(mean, sd, cov_p, ncol = 1)
-
-# how many mounds have high COV values?
-x <- cov[cov$cov > 30, ] # cov = 100 means that sd = mean, cov = 30 is considered high
-
-# TIME OF DAY AND FLUX
-```
-
-
-
-### DRAFT ###
-
-```{r}
-all_fluxes_mound$tag <- as.factor(all_fluxes_mound$tag) 
-all_fluxes_mound$position <- ifelse(all_fluxes_mound$position == "top ", "top", all_fluxes_mound$position)
-all_fluxes_mound$position <- as.factor(all_fluxes_mound$position) 
-
-# Fit linear mixed-effects model (which I think is best?)
-mod1 <- lmer(flux.CH4 ~ tag + species_s + (1 | ID_mound), data = all_fluxes_mound)
-Anova(mod1)
-check_model(mod1)
-ggpredict(mod1, terms = c("tag", "species_s")) %>% plot(add.data = TRUE)
-# no significant effect of tag with random effect included
-
-
-```
-
-variance partitioning from predictors of multiple regression models
-see: https://cran.r-project.org/web/packages/partR2/vignettes/Using_partR2.html
-and corresponding paper: https://peerj.com/articles/11414/
-```{r}
-# calculate marginal R2 (marginal = variance explained by fixed effects only. set R2_type to "conditional" for fixed+random)
-R2_mod5_m <- partR2(mod5, data = all_fluxes_resample_reps_avg, R2_type = "marginal", nboot = 10)
-R2_mod5_c <- partR2(mod5, data = all_fluxes_resample_reps_avg, R2_type = "conditional", nboot = 10)
-
-# how much do predictors explain: uniquely and together
-a <- partR2(mod5, partvars = c("temp", "basal_area_m2", "species_s"), 
-                  R2_type = "marginal", nboot = 10)
-summary(a)
-
-# visualization 
-p1 <- forestplot(a, type = "R2", text_size = 10)
-p2 <- forestplot(a, type = "IR2", text_size = 10)
-p3 <- forestplot(a, type = "SC", text_size = 10)
-p4 <- forestplot(a, type = "BW", text_size = 10)
-(p1 + p2) / (p3 + p4) + plot_annotation(tag_levels = "A")
-
-### DARFT ###
-
-# from mod5 (best model atm)
-vp <- varpart(all_fluxes_resample_reps_avg$mean_mound_fluxCH4, ~ temp, ~ species_s, ~ basal_area_m2, data = all_fluxes_resample_reps_avg)
-plot(vp, Xnames = c("Temp", "Species", "Basal area"), bg = c("seagreen3", "mediumpurple", "yellow"), alpha = 80, 
-     digits = 2, cex = 1.5)
-
-# test for significance of three influential factors using RDA
-rda <- rda(all_fluxes_resample_reps_avg$mean_mound_fluxCH4 ~ temp + species_s + basal_area_m2, data = all_fluxes_resample_reps_avg)
-rda
-
-```
-
-does mound flux change throughout the day, temperature response/Q10 
-```{r}
-# first test the effect of intramound variation to see if values can be averaged
-all_fluxes_daily$tag <- as.factor(all_fluxes_daily$tag)
-all_fluxes_daily$species_s <- as.factor(all_fluxes_daily$species_s)
-
-mod7 <- lmer(flux.CH4 ~ tag + species_s + (1 | sample), data = all_fluxes_daily)
-anova(mod7)
-check_model(mod7)
-ggpredict(mod7, terms = c("tag", "species_s")) %>% plot(add.data = TRUE)
-# doesn't matter - generate mound-level averages and then test the effect of time of day 
-
-# generate mound level averages for daily measurement df
-all_fluxes_daily$ID_mound <- paste(all_fluxes_daily$sample, all_fluxes_daily$time_of_day, sep = "-")
-
-all_fluxes_daily_avg <- all_fluxes_daily %>% group_by(ID_mound, sample, species_s) %>% 
-  summarise(mean_mound_fluxCH4=mean(flux.CH4),
-            mean_mound_fluxCO2=mean(flux.CO2_umol), 
-            mean_mound_fluxCH4_CO2=mean(CH4_CO2), 
-            time_of_day = time_of_day, 
-            temp = mean(avg_respT))
-all_fluxes_daily_avg <- distinct(all_fluxes_daily_avg)
-
-# model 
-mod8 <- lmer(mean_mound_fluxCH4 ~ species_s + time_of_day + temp + (1 | sample), data = all_fluxes_daily_avg)
-anova(mod8)
-check_model(mod8)
-ggpredict(mod8, terms = c( "time_of_day", "temp", "species_s")) %>% plot(add.data = TRUE)
-
-# high collinearity between time of day and temperature - maybe include interaction? 
-```

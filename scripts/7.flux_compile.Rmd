@@ -157,13 +157,13 @@ all_fluxes_mound_avg <- all_fluxes_mound %>% group_by(ID_mound, sample, species_
 all_fluxes_mound_avg <- distinct(all_fluxes_mound_avg)
 
 # merge with mound SA
-mound_SA <- mound_SA[, c('sample', 'SA_m2', 'basal_area_m2')]
-mound_SA <- mound_SA[!is.na(mound_SA$SA_m2),]
+mound_SA <- mound_SA[, c('sample', 'sa_m2_final', 'volume_m3_final', 'basal_area_m2', 'perimeter_m')]
+mound_SA <- mound_SA[!is.na(mound_SA$sa_m2_final),]
 all_fluxes_mound_avg <- merge(all_fluxes_mound_avg, mound_SA, by = "sample")
 
 # calculate mound-level flux
-all_fluxes_mound_avg$mound_CH4flux <- all_fluxes_mound_avg$mean_mound_fluxCH4 * all_fluxes_mound_avg$SA_m2
-all_fluxes_mound_avg$mound_CO2flux <- all_fluxes_mound_avg$mean_mound_fluxCO2 * all_fluxes_mound_avg$SA_m2
+all_fluxes_mound_avg$mound_CH4flux <- all_fluxes_mound_avg$mean_mound_fluxCH4 * all_fluxes_mound_avg$sa_m2_final
+all_fluxes_mound_avg$mound_CO2flux <- all_fluxes_mound_avg$mean_mound_fluxCO2 * all_fluxes_mound_avg$sa_m2_final
 # in units of gas per time for the whole mound structure
 
 # EXPORT - coarse average mound fluxes

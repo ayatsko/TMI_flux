@@ -11,7 +11,7 @@ library(ggplot2)
 library(dplyr)
 library(plyr)
 library(ggpubr)
-#library(patchwork)
+library(plotly)
 library(tidyr)
 library(easystats)
 library(ggeffects)
@@ -57,7 +57,7 @@ b <- ggplot(all_fluxes_mound_avg, aes(x = species_s, y = mean_mound_fluxCH4*0.66
   scale_fill_brewer(palette = "Dark2")+
   theme(legend.position = "none")
 
-# What are the fluxes associated with termites in the mound vs. termites isolated from mound
+# Q3: What are the fluxes associated with termites in the mound vs. termites outside mound
 # select columns from p_fluxes_f
 NT_ch4_long <- p_fluxes_f %>% select(species, flux.CH4_A, flux.CH4_T, flux.CH4_M)
 NT_ch4_long <- gather(NT_ch4_long, key = "source", value = "flux", -species)
@@ -88,87 +88,111 @@ d <- ggplot(NT_co2_long, aes(x = species, y = flux, fill = source))+
 ggarrange(a, c, b, d)
 ```
 
-Q2: How does CH4 flux change for different mound properties: a) mound size and b) wall thickness
+How do mound traits contribute to CH4 flux? 
 ```{r}
-# a) MOUND SIZE
-# average mound size by species
-ggplot(all_fluxes_mound_avg, aes(x = species_s, y = SA_m2, fill = species_s))+ # swap out basal_area_m2
+# Q1: What is the relationship between mound wall thickness and CH4 flux? 
+wt <- all_fluxes_mound[!is.na(all_fluxes_mound$wall_thickness_mm), ]
+wt$sample <- as.factor(wt$sample)
+
+# flux and wall thickness
+a <- ggplot(wt, aes(x = wall_thickness_mm, y = flux.CH4, color = species_s)) +
+  geom_point()+ 
+  geom_smooth(data = subset(wt, species_s == "C. acinaciformis"), method = "lm", se = FALSE) + 
+  facet_wrap(~species_s, scales = "free")+ 
+  theme_classic()+
+  ylab("CH4 flux umol/d/m2")+
+  xlab("Mound wall thickness (mm)")+
+  scale_color_brewer(palette = "Dark2")+
+  theme(legend.position = "bottom")
+
+# species and wall thickness 
+ggplot(wt, aes(x = species_s, y = wall_thickness_mm, fill = species_s))+ 
   geom_boxplot()+
+  geom_jitter()+
   theme_classic()+
   xlab("")+
-  ylab("Mound surface area (m2)")+
+  ylab("Mound wall thickness (mm)")+
+  ggtitle("Mound wall thickness by species")+
   scale_fill_brewer(palette = "Dark2")+
   theme(legend.position = "none")
 
-mod <- aov(SA_m2 ~ species_s, data = all_fluxes_mound_avg)
-summary(mod)
-emmeans(mod, pairwise ~ species_s)
+# Q2: What is the relationship between mound size and CH4 flux? 
+# whole mound methane flux mound size (basal_area_m2, sa_m2_final, volume_m3_final)
+b <- ggplot(all_fluxes_mound_avg, aes(x = volume_m3_final, y = mound_CH4flux, color = species_s)) + 
+  geom_point()+ 
+  geom_smooth(data = subset(all_fluxes_mound_avg, species_s == "A. laurensis"), method = "lm", se = FALSE) + 
+  geom_smooth(data = subset(all_fluxes_mound_avg, species_s == "N. magnus"), method = "lm", se = FALSE) + 
+  facet_wrap(~species_s, scales = "free")+ 
+  scale_color_brewer(palette = "Dark2")+
+  theme_classic()+
+  ylab("Total mound CH4 flux (umol/d/mound)") +
+  xlab("Mound volume (m3)")+
+  theme(legend.position = "none")
 
-# methane flux (whole mound) by mound size 
-ggplot(all_fluxes_mound_avg, aes(x = SA_m2, y = mean_mound_fluxCH4, color = species_s)) + # swap out basal_area_m2, color = campaign
+# average mound size by species
+ggplot(all_fluxes_mound_avg, aes(x = species_s, y = volume_m3_final, fill = species_s))+ # swap out basal_area_m2
+  geom_boxplot()+
+  theme_classic()+
+  xlab("")+
+  ylab("Mound volume (m3)")+
+  ggtitle("Mound volume by species")+
+  scale_fill_brewer(palette = "Dark2")+
+  theme(legend.position = "none")
+
+# Q3: What is the relationship between mound volume, termite biomass, and CH4 flux? 
+# calculate estimated termite biomass 
+p_fluxes_f$t_biomass_g_cm3 <- p_fluxes_f$mass_termite_g / p_fluxes_f$material_volume_cm3
+p_fluxes_f$t_biomass_g_m3 <- p_fluxes_f$mass_termite_g / p_fluxes_f$material_volume_cm3 * 10e6
+
+# calculate average t_biomass_g_m3 by species
+t_biomass <- p_fluxes_f %>% 
+  group_by(species) %>% 
+  summarise(t_biomass_g_m3 = mean(t_biomass_g_m3))
+
+t_biomass$species_s <- c("A. laurensis", "C. acinaciformis", "N. magnus")
+t_biomass <- t_biomass[, -1]
+
+# Define min and max for each axis to form the cube boundaries
+xmin <- mean(all_fluxes_mound_avg$termite_biomass_g) + sd(all_fluxes_mound_avg$termite_biomass_g)
+xmax <- mean(all_fluxes_mound_avg$termite_biomass_g) -  sd(all_fluxes_mound_avg$termite_biomass_g)
+ymin <- mean(all_fluxes_mound_avg$volume_m3_final) + sd(all_fluxes_mound_avg$volume_m3_final)
+ymax <- mean(all_fluxes_mound_avg$volume_m3_final) - sd(all_fluxes_mound_avg$volume_m3_final)
+zmin <- mean(all_fluxes_mound_avg$mound_CH4flux) + sd(all_fluxes_mound_avg$mound_CH4flux)
+zmax <- mean(all_fluxes_mound_avg$mound_CH4flux) - sd(all_fluxes_mound_avg$mound_CH4flux)
+
+# 3d plot with reference cube
+plot_ly(data = all_fluxes_mound_avg, x = ~termite_biomass_g, y = ~volume_m3_final, z = ~mound_CH4flux,
+        type = "scatter3d", mode = "markers",
+        marker = list(size = 5, color = ~mean_mound_fluxCH4, colorscale = "Viridis", showscale = TRUE)) %>%
+  # Add lines for the edges of the cube
+  add_trace(type = "scatter3d", mode = "lines",
+            x = c(xmin, xmax, xmax, xmin, xmin, xmin, xmin, xmax, xmax, xmax, xmax, xmin),
+            y = c(ymin, ymin, ymax, ymax, ymin, ymin, ymax, ymax, ymax, ymin, ymin, ymin),
+            z = c(zmin, zmin, zmin, zmin, zmin, zmax, zmax, zmax, zmin, zmin, zmax, zmax),
+            line = list(color = 'black', width = 2)) %>%
+  layout(scene = list(
+    xaxis = list(title = "Termite Biomass (g)"),
+    yaxis = list(title = "Volume (m³)"),
+    zaxis = list(title = "Mound CH4 Flux")
+  ))
+
+# relationship between termite biomass and CH4 flux
+ggplot(all_fluxes_mound_avg, aes(x = termite_biomass_g, y = mound_CH4flux, color = species_s)) + 
   geom_point()+ 
   geom_smooth(method = 'lm')+
   facet_wrap(~species_s, scales = "free")+ 
   scale_color_brewer(palette = "Dark2")+
   theme_classic()+
   ylab("Total mound CH4 flux (umol/d/mound)") +
-  xlab("Mound surface area (m2)")+
+  xlab("Termite biomass (g)")+
   theme(legend.position = "none")
 
-mod <- lm(mound_CH4flux ~ SA_m2 + species_s, data = all_fluxes_mound_avg)
-summary(mod)
-report(mod)
-ggpredict(mod, terms = c("SA_m2", "species_s")) %>% plot(add.data = TRUE)
-
-# b) WALL THICKNESS
-wt <- all_fluxes_mound[!is.na(all_fluxes_mound$wall_thickness_mm), ]
-wt$sample <- as.factor(wt$sample)
-
-# to calculate average mound wall thickness
-# wt_avg <- wt %>% group_by(ID_mound, sample, species_s) %>% 
-#   summarise(mean_mound_fluxCH4=mean(flux.CH4),
-#             mean_mound_fluxCO2=mean(flux.CO2_umol), 
-#             mean_mound_fluxCH4_CO2=mean(CH4_CO2), 
-#             campaign = campaign, 
-#             temp = mean(avg_respT), 
-#             precip_1mo = precip_1mo, 
-#             wall_thickness_mm = mean(wall_thickness_mm))
-# wt_mound_avg <- distinct(wt_avg)
-
-# average wall thickness by species
-ggplot(wt, aes(x = species_s, y = wall_thickness_mm, fill = species_s))+ # swap out basal_area_m2
-  geom_boxplot()+
-  theme_classic()+
-  xlab("")+
-  ylab("Mound wall thickness (mm)")+
-  scale_fill_brewer(palette = "Dark2")+
-  theme(legend.position = "none")
-
-mod <- aov(wall_thickness_mm ~ species_s, data = wt)
-summary(mod)
-emmeans(mod, pairwise ~ species_s)
-
-ggplot(wt, aes(x = wall_thickness_mm, y = flux.CH4, color = species_s)) +
-  geom_point()+ 
-  geom_smooth(method = "lm")+
-  facet_wrap(~species_s, scales = "free")+ 
-  theme_classic()+
-  ylab("CH4 flux umol/d/m2")+
-  xlab("Mound wall thickness (mm)")+
-  ggtitle("Sample point mound wall thickness")+
-  scale_color_brewer(palette = "Dark2")+
-  theme(legend.position = "bottom")
-
-mod <- lmer(flux.CH4 ~ wall_thickness_mm + species_s + (1 | sample), data = wt)
-summary(mod)
-Anova(mod)
-report(mod)
-ggpredict(mod, terms = c("wall_thickness_mm", "species_s")) %>% plot(add.data = TRUE)
+ggarrange(a, b, ncol = 1)
 ```
 
-Q3: How does CH4 flux change annually, and is this driven by environmental conditions (temperature and precipitation)?
+How do seasons and temperature effect CH4 flux?
 ```{r}
-# a) seasonal comparison 
+# Q1: How does CH4 flux change by season?
 all_fluxes_seasonal_avg$campaign <- factor(all_fluxes_seasonal_avg$campaign, levels = c("may22", "aug23", "nov22", "feb24"))
 all_fluxes_seasonal_avg$species_s <- as.factor(all_fluxes_seasonal_avg$species_s)
 
@@ -180,13 +204,6 @@ ggplot(all_fluxes_seasonal_avg, aes(x = campaign, y = mean_mound_fluxCH4, fill =
   theme_classic()+
   theme(legend.position = "none")
 
-mod <- lmer(mean_mound_fluxCH4 ~ campaign + (1 | sample), data = all_fluxes_seasonal_avg)
-summary(mod)
-Anova(mod)
-report(mod)
-emm <- emmeans(mod, ~ campaign)
-pairs(emm)
-
 # include species variation 
 ggplot(all_fluxes_seasonal_avg, aes(x = campaign, y = mean_mound_fluxCH4, fill = species_s))+
   geom_boxplot()+
@@ -197,79 +214,17 @@ ggplot(all_fluxes_seasonal_avg, aes(x = campaign, y = mean_mound_fluxCH4, fill =
                                  "#7570b3")) +
   theme_classic()
 
-mod <- lmer(mean_mound_fluxCH4 ~ campaign + species_s + (1 | sample), data = all_fluxes_seasonal_avg)
-summary(mod)
-Anova(mod)
-report(mod)
-ggpredict(mod, terms = c("species_s", "campaign")) %>% plot(add.data = TRUE)
-
-emm <- emmeans(mod, ~ campaign)
-emm <- emmeans(mod, ~ species_s)
-pairs(emm)
-
-# b) test environmental predictors (temperature and precipitation) 
+# Q2: How does CH4 flux change by temperature?
+# LINEAR
 ggplot(all_fluxes_seasonal_avg, aes(x = temp, y = mean_mound_fluxCH4, color = campaign))+
   geom_point()+
-  facet_wrap(~species_s)+
   geom_smooth(method = 'lm', se = TRUE)+
   ylab("CH4 flux umol/d/m2")+
   xlab("Average Mound Surface Temperature (C)")+
   scale_color_brewer(palette = "Dark2")+
   theme_classic()
 
-mod <- lmer(mean_mound_fluxCH4 ~ temp*species_s*campaign + (1 | sample), data = all_fluxes_seasonal_avg)
-Anova(mod)
-summary(mod)
-
-# model without all interactions
-mod <- lmer(mean_mound_fluxCH4 ~ temp  + species_s + campaign + (1 | sample), data = all_fluxes_seasonal_avg)
-summary(mod)
-ggpredict(mod, terms = c("temp", "campaign", "species_s")) %>% plot(add.data = TRUE)
-
-# nonlinear model 
-residuals <- resid(mod)
-fitted_values <- fitted(mod)
-plot(fitted_values, residuals, main = "Residuals vs Fitted Values",
-     xlab = "Fitted Values", ylab = "Residuals")
-abline(h = 0, col = "red")
-# residuals dont look like theres a curve going on - try second order polynomial just to see what's going on 
-
-```
-
-non linear model exploration 
-```{r}
-# polynomial 
-mod_poly <- lmer(mean_mound_fluxCH4 ~ poly(temp, 2) + species_s + campaign + (1 | sample), data = all_fluxes_seasonal_avg)
-summary(mod_poly)
-
-residuals <- resid(mod_poly)
-fitted_values <- fitted(mod_poly)
-
-plot(fitted_values, residuals, main = "Residuals vs Fitted Values",
-     xlab = "Fitted Values", ylab = "Residuals")
-abline(h = 0, col = "red")
-
-qqnorm(resid(mod_poly))
-qqline(resid(mod_poly))
-
-# spl;ines
-mod_spline <- lmer(mean_mound_fluxCH4 ~ ns(temp, 3) + species_s + campaign + (1 | sample), data = all_fluxes_seasonal_avg)
-summary(mod_spline)
-
-residuals <- resid(mod_spline)
-fitted_values <- fitted(mod_spline)
-
-plot(fitted_values, residuals, main = "Residuals vs Fitted Values",
-     xlab = "Fitted Values", ylab = "Residuals")
-abline(h = 0, col = "red")
-
-qqnorm(resid(mod_spline))
-qqline(resid(mod_spline))
-
-AIC(mod, mod_poly, mod_spline)
-
-# visualize non linear models 
-# polynomial
+# POLYNOMIAL
 new_data <- expand.grid(
   temp = seq(min(all_fluxes_seasonal_avg$temp), max(all_fluxes_seasonal_avg$temp), length.out = 100),
   species_s = unique(all_fluxes_seasonal_avg$species_s),
@@ -280,7 +235,7 @@ new_data$predicted_flux <- predict(mod_poly, newdata = new_data, re.form = NA)
 
 ggplot(new_data, aes(x = temp, y = predicted_flux, color = campaign)) +
   geom_line(aes(linetype = campaign)) +  # Different linetypes for campaigns
-  facet_wrap(~ species_s) +              # Separate plots for each species
+  #facet_wrap(~ species_s) +              # Separate plots for each species
   labs(
     x = "Temperature (°C)", 
     y = "Predicted CH4 Flux (umol/d/m2)",
@@ -288,23 +243,26 @@ ggplot(new_data, aes(x = temp, y = predicted_flux, color = campaign)) +
   ) +
   theme_minimal() +
   theme(legend.position = "bottom")
-
-# splines
-new_data$predicted_flux <- predict(mod_spline, newdata = new_data, re.form = NA)
-
-ggplot(new_data, aes(x = temp, y = predicted_flux, color = campaign)) +
-  geom_line(aes(linetype = campaign)) +  # Different linetypes for campaigns
-  facet_wrap(~ species_s) +              # Separate plots for each species
-  labs(
-    x = "Temperature (°C)", 
-    y = "Predicted CH4 Flux (umol/d/m2)",
-    title = "Spline Relationship between Temperature and CH4 Flux"
-  ) +
-  theme_minimal() +
-  theme(legend.position = "bottom")
-
 ```
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Other potentially interesting things 
+------------------------------------
 
 splines of different df 
 ```{r}
@@ -341,8 +299,6 @@ summary(spline7)
 AIC(spline3, spline4, spline5, spline6, spline7, spline10)
 ```
 
-Other interesting things 
---------------------------------
 PROPORTIONAL FLUXES - from naked termite measurements, what proportion of the total flux is from termites vs mounds? 
 ```{r}
 df <- p_fluxes_f[c("species", "prop_T_CH4", "prop_M_CH4", "prop_T_CO2", "prop_M_CO2")]
