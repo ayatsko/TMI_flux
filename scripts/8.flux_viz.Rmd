@@ -44,6 +44,7 @@ a <- ggplot(p_fluxes_f, aes(x = species, y = TEF_ug_g_h, fill = species))+
   scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
   scale_fill_brewer(palette = "Dark2")+
   theme_classic()+
+  ggtitle("a)") + 
   theme(legend.position = "none")
 
 # Q2: How do mound fluxes vary across study species (mean fluxes from the mound)
@@ -54,6 +55,7 @@ b <- ggplot(all_fluxes_mound_avg, aes(x = species_s, y = mean_mound_fluxCH4*0.66
   theme_classic()+
   ylab("Mean mound CH4 flux (ug CH4/hr/m2)")+
   xlab("")+
+  ggtitle("b)") + 
   scale_fill_brewer(palette = "Dark2")+
   theme(legend.position = "none")
 
@@ -69,23 +71,23 @@ NT_co2_long$source <- factor(NT_co2_long$source, levels = c("flux.CO2_A", "flux.
 
 c <- ggplot(NT_ch4_long, aes(x = species, y = flux, fill = source))+
   geom_boxplot(outlier.shape = NA)+
-  geom_jitter()+
   ylab("CH4 flux (umol/d/m2)")+
   xlab("")+
   scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
   scale_fill_brewer(palette = "RdYlGn", labels = c("T+M", "T", "M"))+
+  ggtitle("c)") +
   theme_classic()
 
 d <- ggplot(NT_co2_long, aes(x = species, y = flux, fill = source))+
   geom_boxplot(outlier.shape = NA)+
-  geom_jitter()+
   ylab("CO2 flux (mmol/d/m2)")+
   xlab("")+
   scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
   scale_fill_brewer(palette = "RdYlGn", labels = c("T+M", "T", "M"))+
+  ggtitle("d)") +
   theme_classic()
 
-ggarrange(a, c, b, d)
+ggarrange(a, b, c, d)
 ```
 
 How do mound traits contribute to CH4 flux? 
@@ -103,6 +105,7 @@ a <- ggplot(wt, aes(x = wall_thickness_mm, y = flux.CH4, color = species_s)) +
   ylab("CH4 flux umol/d/m2")+
   xlab("Mound wall thickness (mm)")+
   scale_color_brewer(palette = "Dark2")+
+  ggtitle("a)") +
   theme(legend.position = "bottom")
 
 # species and wall thickness 
@@ -127,6 +130,7 @@ b <- ggplot(all_fluxes_mound_avg, aes(x = volume_m3_final, y = mound_CH4flux, co
   theme_classic()+
   ylab("Total mound CH4 flux (umol/d/mound)") +
   xlab("Mound volume (m3)")+
+  ggtitle("b)") +
   theme(legend.position = "none")
 
 # average mound size by species
@@ -216,12 +220,13 @@ ggplot(all_fluxes_seasonal_avg, aes(x = campaign, y = mean_mound_fluxCH4, fill =
 
 # Q2: How does CH4 flux change by temperature?
 # LINEAR
-ggplot(all_fluxes_seasonal_avg, aes(x = temp, y = mean_mound_fluxCH4, color = campaign))+
+a <- ggplot(all_fluxes_seasonal_avg, aes(x = temp, y = mean_mound_fluxCH4, color = campaign))+
   geom_point()+
   geom_smooth(method = 'lm', se = TRUE)+
   ylab("CH4 flux umol/d/m2")+
   xlab("Average Mound Surface Temperature (C)")+
   scale_color_brewer(palette = "Dark2")+
+  ggtitle("a)") + 
   theme_classic()
 
 # POLYNOMIAL
@@ -233,16 +238,19 @@ new_data <- expand.grid(
                        
 new_data$predicted_flux <- predict(mod_poly, newdata = new_data, re.form = NA)
 
-ggplot(new_data, aes(x = temp, y = predicted_flux, color = campaign)) +
-  geom_line(aes(linetype = campaign)) +  # Different linetypes for campaigns
+b <- ggplot(new_data, aes(x = temp, y = predicted_flux, color = campaign)) +
+  geom_line() + 
   #facet_wrap(~ species_s) +              # Separate plots for each species
   labs(
     x = "Temperature (°C)", 
     y = "Predicted CH4 Flux (umol/d/m2)",
     title = "Polynomial Relationship between Temperature and CH4 Flux"
   ) +
-  theme_minimal() +
-  theme(legend.position = "bottom")
+  scale_color_brewer(palette = "Dark2")+
+  ggtitle("b)") + 
+  theme_classic()
+
+ggarrange(a, b, ncol = 1)
 ```
 
 
