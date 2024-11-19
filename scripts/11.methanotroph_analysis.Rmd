@@ -1,0 +1,120 @@
+---
+title: "meth_analysis"
+author: "abbey yatsko"
+date: "2024-11-18"
+output: html_document
+---
+
+workspace
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+metadata <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/data_out/metagenomes_metadata.csv")
+top_e <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/data_out/q1_top_emitters.csv")
+var_e <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/data_out/q2_variable_emitters.csv")
+fluxes <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound.csv")
+targets <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/targets.csv")
+
+ko <- read.delim("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/ko.table(ReadsPerSample).txt", header = TRUE, sep = "\t")
+pathway <- read.delim("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/pathway.table(ReadsPerSample).txt", header = TRUE, sep = "\t")
+cazymes <- read.delim("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/CAZy.single.table(ReadsPerSample).txt", header = TRUE, sep = "\t")
+```
+
+data clean 
+```{r}
+fluxes <- fluxes[fluxes$campaign == "may22", ]
+fluxes$extract_ID <- paste(fluxes$sample,"-",fluxes$tag, "-", fluxes$position, sep = "")
+x <- fluxes[, c("extract_ID", "flux.CH4")]
+
+# merge x and metadata 
+metadata <- merge(x, metadata, by = "extract_ID")
+```
+
+ko table data clean
+```{r}
+# filter ko table for what is in the target list 
+ko_targets <- targets[targets$source == "ko", ]$target
+
+# filter ko_table by Annotation = ko_targets
+ko_table_targets <- ko[ko$Annotation %in% ko_targets, ]
+
+# remove first column 
+ko_table_targets <- ko_table_targets[, -1]
+
+# ko_table_targets to long format
+ko_table_targets_l <- ko_table_targets %>% 
+  pivot_longer(cols = -Annotation, names_to = "sequencing_id", values_to = "reads") %>% 
+  mutate(sample = gsub("X", "", sequencing_id))
+
+# shorten annotation
+ko_table_targets_l$Annotation_s <- str_extract(ko_table_targets_l$Annotation, "^[^;]*")
+
+metadata_ko <- metadata[, c("sequencing_id", "extract_ID", "flux.CH4", "top_emitters", "variable_emitters", "rank", "species")]
+data_ko <- merge(ko_table_targets_l, metadata_ko)
+```
+
+pathway table data clean 
+```{r}
+# filter ko table for what is in the target list 
+pathway_targets <- targets[targets$source == "pathway", ]$target
+
+# filter ko_table by Annotation = ko_targets
+pathway_table_targets <- pathway[pathway$pathway %in% pathway_targets, ]
+
+# remove first column 
+pathway_table_targets <- pathway_table_targets[, -1]
+
+# ko_table_targets to long format
+pathway_table_targets_l <- pathway_table_targets %>% 
+  pivot_longer(cols = -pathway, names_to = "sequencing_id", values_to = "reads") 
+
+metadata_pathway <- metadata[, c("sequencing_id", "extract_ID", "flux.CH4", "top_emitters", "variable_emitters", "rank", "species")]
+data_pathway <- merge(pathway_table_targets_l, metadata_pathway)
+```
+
+visualizations 
+```{r}
+# reads ~ flux.CH4 (ko table)
+ggplot(data_ko, aes(x = reads, y = flux.CH4)) +
+  geom_point() +
+  geom_smooth(method = "lm") + 
+  facet_wrap(species~Annotation_s, scales = "free", ncol = 6) + 
+  labs(title = "reads ~ flux.CH4", x = "reads", y = "flux.CH4")+ 
+  theme_classic()
+
+pmoB_dat <- data_ko[data_ko$Annotation_s == "pmoB-amoB", ]
+mod <- lm(flux.CH4 ~ reads, data = pmoA_dat)
+Anova(mod)
+
+# reads ~ flux.CH4 (pathways)
+ggplot(data_pathway, aes(x = reads, y = flux.CH4)) +
+  geom_point() +
+  geom_smooth(method = "lm") + 
+  facet_wrap(~species) + 
+  labs(title = "reads ~ flux.CH4", x = "reads", y = "flux.CH4")+ 
+  theme_classic()
+
+mod <- lm(flux.CH4 ~ reads, data = data_pathway)
+Anova(mod)
+```
+
+q1 (high/low emitters)
+```{r}
+# omit rows = NA for column rank 
+data_pathway_q1 <- data_pathway[!is.na(data_pathway$rank), ]
+data_ko_q1 <- data_ko[!is.na(data_ko$rank), ]
+
+ggplot(data_pathway_q1, aes(x = species, y = reads, fill = rank)) +
+  geom_boxplot() +
+  theme_classic()
+
+ggplot(data_ko_q1, aes(x = species, y = reads, fill = rank)) +
+  geom_boxplot() +
+  facet_wrap(~Annotation_s, scales = "free") + 
+  theme_classic()
+
+```
+

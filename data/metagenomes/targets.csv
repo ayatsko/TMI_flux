@@ -1,0 +1,8 @@
+﻿source,target,process
+ko,pmoA-amoA; methane/ammonia monooxygenase subunit A [EC:1.14.18.3 1.14.99.39],methane oxidation
+ko,pmoB-amoB; methane/ammonia monooxygenase subunit B,methane oxidation
+ko,pmoC-amoC; methane/ammonia monooxygenase subunit C,methane oxidation
+ko,"mdh2, mxaI; methanol dehydrogenase (cytochrome c) subunit 2 [EC:1.1.2.7]",methanol dehydrogenase
+ko,"fae; 5,6,7,8-tetrahydromethanopterin hydro-lyase [EC:4.2.1.147]",formaldehyde metabolism
+ko,nirK; nitrite reductase (NO-forming) [EC:1.7.2.1],denitrification
+pathway,Methane metabolism,methane metabolism
