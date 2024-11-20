@@ -84,9 +84,6 @@ summary(mod)
 Anova(mod)
 ggpredict(mod, terms = c("volume_m3_final")) %>% plot(add.data = TRUE)
 
-# test differences between species 
-mod <- lmer(mound_CH4flux ~ volume_m3_final*species_s + (1 | sample), data = all_fluxes_mound_avg)
-Anova(mod)
 mod_ami <- lmer(mound_CH4flux ~ volume_m3_final + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s =="A. laurensis",])
 mod_cop <- lmer(mound_CH4flux ~ volume_m3_final + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s =="C. acinaciformis",])
 mod_nas <- lmer(mound_CH4flux ~ volume_m3_final + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s =="N. magnus",])
@@ -117,6 +114,9 @@ Anova(mod)
 # POLYNOMIAL 
 mod_poly <- lmer(mean_mound_fluxCH4 ~ poly(temp, 2) + campaign + (1 | sample) + (1 | species_s), data = all_fluxes_seasonal_avg)
 Anova(mod_poly)
+emmeans(mod_poly, pairwise ~ campaign)
+
+
 residuals <- resid(mod_poly)
 fitted_values <- fitted(mod_poly)
 ```
