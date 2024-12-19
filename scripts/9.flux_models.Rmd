@@ -19,6 +19,7 @@ library(ggeffects)
 library(vegan)
 library(partR2)
 library(patchwork)
+library(emmeans)
 ```
 
 data load 
@@ -27,33 +28,50 @@ p_fluxes_f <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalflux
 all_fluxes_mound_avg <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound_avg.csv")
 all_fluxes_mound <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_mound.csv")
 
-
-
-
-
-
 all_fluxes_resample_reps_avg <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_fluxes_resample_reps_avg.csv")
 
 all_fluxes_daily <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_daily_fluxes.csv")
-
 ```
 
-Termite fluxes with/without the context of their environment
+Determine if there is significant within mound variation 
+```{r}
+# random effects model 
+model <- lmer(flux.CH4 ~ 1 + (1 | ID_mound), data = all_fluxes_mound)
+summary(model)
+ranova(model) # signifiacnt random effect means that intramound variation matters
+
+# intraclass correlation coefficient 
+icc <- as.numeric(VarCorr(model)$ID_mound) / 
+       (as.numeric(VarCorr(model)$ID_mound) + attr(VarCorr(model), "sc")^2)
+
+# interpretation: ~34.8% of the total variation in CH4 flux is due to differences between mounds, while ~65.2% is due to variation within mounds
+
+# need to retain the random effect in subsequent models
+
+# visualisation of within and between mound variation 
+ggplot(all_fluxes_mound, aes(x = ID_mound, y = flux.CH4)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "CH4 Flux Variation Within and Between Mounds",
+       x = "Mound ID",
+       y = "CH4 Flux") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Comparison of termite fluxes at the individual and mound level
 ```{r}
 # Q1: How does TEF vary across study species (fluxes from individuals)
 # test for differences between species 
 mod <- aov(TEF_ug_g_h ~ species, data = p_fluxes_f)
 summary(mod)
+
 # determine which species are different
 emmeans(mod, pairwise ~ species)
 
-# Q2: How do mound fluxes vary across study species (mean fluxes from the mound)
-mod <- aov(mean_mound_fluxCH4 ~ species_s, data = all_fluxes_mound_avg)
+# Q2: How do mound fluxes vary across study species
+mod <- lmer(flux.CH4 ~ species_s + (1 | ID_mound), data = all_fluxes_mound)
 summary(mod)
 emmeans(mod, pairwise ~ species_s)
-
-# Q3: What are the fluxes associated with termites in the mound vs. termites outside mound
-
 ```
 
 How do mound traits contribute to CH4 flux? 
@@ -63,39 +81,40 @@ How do mound traits contribute to CH4 flux?
 wt <- all_fluxes_mound[!is.na(all_fluxes_mound$wall_thickness_mm), ]
 wt$sample <- as.factor(wt$sample)
 
-mod <-  lmer(flux.CH4 ~ wall_thickness_mm + (1 | species_s) + (1 | sample), data = wt)
-summary(mod)
-Anova(mod)
-ggpredict(mod, terms = c("wall_thickness_mm")) %>% plot(add.data = TRUE)
-
-# look at relationship just for coptotermes
-mod <-  lmer(flux.CH4 ~ wall_thickness_mm + (1 | sample), data = wt[wt$species_s == "C. acinaciformis",])
-Anova(mod)
-
-# average wall thickness by species
+# average wall thickness by species significantly differs
 mod <- aov(wall_thickness_mm ~ species_s, data = wt)
 summary(mod)
 emmeans(mod, pairwise ~ species_s)
 
-# Q2: What is the relationship between mound size and CH4 flux? 
-# whole mound methane flux mound size (basal_area_m2, sa_m2_final, volume_m3_final)
-mod <- lmer(mound_CH4flux ~ volume_m3_final + (1 | species_s) + (1 | sample), data = all_fluxes_mound_avg)
+# centre wall_thickness to account for species differences in mound wall thickness
+wt$wall_thickness_centered <- ave(wt$wall_thickness_mm, wt$species_s, FUN = scale)
+
+mod <-  lmer(flux.CH4 ~ wall_thickness_centered + (1 | species_s) + (1 | ID_mound), data = wt)
 summary(mod)
 Anova(mod)
-ggpredict(mod, terms = c("volume_m3_final")) %>% plot(add.data = TRUE)
 
-mod_ami <- lmer(mound_CH4flux ~ volume_m3_final + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s =="A. laurensis",])
-mod_cop <- lmer(mound_CH4flux ~ volume_m3_final + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s =="C. acinaciformis",])
-mod_nas <- lmer(mound_CH4flux ~ volume_m3_final + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s =="N. magnus",])
-summary(mod_nas)
+# look at relationship just for coptotermes
+mod <-  lmer(flux.CH4 ~ wall_thickness_centered + (1 | ID_mound), data = wt[wt$species_s == "C. acinaciformis",])
+Anova(mod)
+
+# Q2: What is the relationship between mound size and CH4 flux? 
 
 # average mound size by species
 mod <- aov(volume_m3_final ~ species_s, data = all_fluxes_mound_avg)
 summary(mod)
 emmeans(mod, pairwise ~ species_s)
 
-# Q3: What is the relationship between mound volume, termite biomass, and CH4 flux? 
+all_fluxes_mound_avg$volume_m3_final_centered <- ave(all_fluxes_mound_avg$volume_m3_final, all_fluxes_mound_avg$species_s, FUN = scale)
 
+mod <- lmer(mound_CH4flux ~ volume_m3_final_centered + (1 | species_s) + (1 | sample), data = all_fluxes_mound_avg)
+summary(mod)
+Anova(mod)
+ggpredict(mod, terms = c("volume_m3_final_centered")) %>% plot(add.data = TRUE)
+
+mod_ami <- lmer(mound_CH4flux ~ volume_m3_final + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s =="A. laurensis",])
+mod_cop <- lmer(mound_CH4flux ~ volume_m3_final + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s =="C. acinaciformis",])
+mod_nas <- lmer(mound_CH4flux ~ volume_m3_final + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s =="N. magnus",])
+summary(mod_nas)
 ```
 
 How do seasons and temperature effect CH4 flux?
@@ -121,3 +140,53 @@ residuals <- resid(mod_poly)
 fitted_values <- fitted(mod_poly)
 ```
 
+EXTRA 
+```{r}
+# CH4 flux from mounds if you just used TEF * biomass 
+p_fluxes_f$t_biomass_g_m3 <- p_fluxes_f$mass_termite_g / p_fluxes_f$material_volume_cm3 * 10e6
+
+# calculate average t_biomass_g_m3 by species
+t_biomass <- p_fluxes_f %>% 
+  group_by(species) %>% 
+  summarise(t_biomass_g_m3 = mean(t_biomass_g_m3), 
+            TEF_ug_g_h = mean(TEF_ug_g_h))
+
+t_biomass$species_s <- c("A. laurensis", "C. acinaciformis", "N. magnus")
+t_biomass <- t_biomass[, -1]
+
+all_fluxes_mound_avg <- left_join(all_fluxes_mound_avg, t_biomass, by = "species_s")
+
+all_fluxes_mound_avg$mound_CH4flux_TEF <- all_fluxes_mound_avg$t_biomass_g_m3 *all_fluxes_mound_avg$volume_m3_final * all_fluxes_mound_avg$TEF_ug_g_h 
+
+# data to long format for the columns mound_CH4flux_TEF and mound_CH4flux
+all_fluxes_mound_avg_long <- all_fluxes_mound_avg %>% 
+  pivot_longer(cols = c(mound_CH4flux_TEF, mound_CH4flux), names_to = "flux_type", values_to = "flux")
+
+# print each comparison figure to pdf
+pdf("mound_flux_plots.pdf", onefile = TRUE)  # onefile = TRUE ensures multiple plots in one PDF
+
+# Loop through each unique mound ID
+unique_mounds <- unique(all_fluxes_mound_avg_long$ID_mound)
+
+for(mound in unique_mounds) {
+  # Subset the data for the current mound
+  mound_data <- subset(all_fluxes_mound_avg_long, ID_mound == mound)
+  
+  # Create the plot for the current mound
+  plot <- ggplot(mound_data, aes(x = flux_type, y = flux, color = flux_type)) +
+    geom_point(alpha = 0.7, size = 3) +
+    theme_minimal() +
+    labs(
+      x = "Species",
+      y = "CH4 Flux (ug/m2/h)",
+      fill = "Flux Type",
+      title = paste("Mound ID:", mound)  # Add a title to each plot
+    )
+  
+  # Print the plot to the PDF
+  print(plot)
+}
+
+# Close the PDF device
+dev.off()
+```

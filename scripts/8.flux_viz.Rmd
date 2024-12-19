@@ -6,7 +6,6 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
 library(ggplot2)
 library(dplyr)
 library(plyr)
@@ -33,7 +32,7 @@ all_fluxes_seasonal_avg <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/d
 all_fluxes_daily <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/all_daily_fluxes.csv")
 ```
 
-Termite fluxes with/without the context of their environment
+Comparison of termite fluxes at the individual (TEF) and mound level
 ```{r}
 # Q1: How does TEF vary across study species (fluxes from individuals)
 a <- ggplot(p_fluxes_f, aes(x = species, y = TEF_ug_g_h, fill = species))+
@@ -59,38 +58,11 @@ b <- ggplot(all_fluxes_mound_avg, aes(x = species_s, y = mean_mound_fluxCH4*0.66
   scale_fill_brewer(palette = "Dark2")+
   theme(legend.position = "none")
 
-# Q3: What are the fluxes associated with termites in the mound vs. termites outside mound
-# select columns from p_fluxes_f
-NT_ch4_long <- p_fluxes_f %>% select(species, flux.CH4_A, flux.CH4_T, flux.CH4_M)
-NT_ch4_long <- gather(NT_ch4_long, key = "source", value = "flux", -species)
-NT_ch4_long$source <- factor(NT_ch4_long$source, levels = c("flux.CH4_A", "flux.CH4_T", "flux.CH4_M"))
+ggarrange(a, b)
 
-NT_co2_long <- p_fluxes_f %>% select(species, flux.CO2_A, flux.CO2_T, flux.CO2_M)
-NT_co2_long <- gather(NT_co2_long, key = "source", value = "flux", -species)
-NT_co2_long$source <- factor(NT_co2_long$source, levels = c("flux.CO2_A", "flux.CO2_T", "flux.CO2_M"))
-
-c <- ggplot(NT_ch4_long, aes(x = species, y = flux, fill = source))+
-  geom_boxplot(outlier.shape = NA)+
-  ylab("CH4 flux (umol/d/m2)")+
-  xlab("")+
-  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
-  scale_fill_brewer(palette = "RdYlGn", labels = c("T+M", "T", "M"))+
-  ggtitle("c)") +
-  theme_classic()
-
-d <- ggplot(NT_co2_long, aes(x = species, y = flux, fill = source))+
-  geom_boxplot(outlier.shape = NA)+
-  ylab("CO2 flux (mmol/d/m2)")+
-  xlab("")+
-  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
-  scale_fill_brewer(palette = "RdYlGn", labels = c("T+M", "T", "M"))+
-  ggtitle("d)") +
-  theme_classic()
-
-ggarrange(a, b, c, d)
 ```
 
-How do mound traits contribute to CH4 flux? 
+Mound traits influencing CH4 flux? 
 ```{r}
 # Q1: What is the relationship between mound wall thickness and CH4 flux? 
 wt <- all_fluxes_mound[!is.na(all_fluxes_mound$wall_thickness_mm), ]
@@ -122,10 +94,10 @@ ggplot(wt, aes(x = species_s, y = wall_thickness_mm, fill = species_s))+
 # Q2: What is the relationship between mound size and CH4 flux? 
 # whole mound methane flux mound size (basal_area_m2, sa_m2_final, volume_m3_final)
 b <- ggplot(all_fluxes_mound_avg, aes(x = volume_m3_final, y = mound_CH4flux, color = species_s)) + 
-  geom_point()+ 
+  geom_point(size = 4)+ 
   geom_smooth(data = subset(all_fluxes_mound_avg, species_s == "A. laurensis"), method = "lm", se = FALSE) + 
   geom_smooth(data = subset(all_fluxes_mound_avg, species_s == "N. magnus"), method = "lm", se = FALSE) + 
-  facet_wrap(~species_s, scales = "free")+ 
+ # facet_wrap(~species_s, scales = "free")+ 
   scale_color_brewer(palette = "Dark2")+
   theme_classic()+
   ylab("Total mound CH4 flux (umol/d/mound)") +
@@ -141,54 +113,6 @@ ggplot(all_fluxes_mound_avg, aes(x = species_s, y = volume_m3_final, fill = spec
   ylab("Mound volume (m3)")+
   ggtitle("Mound volume by species")+
   scale_fill_brewer(palette = "Dark2")+
-  theme(legend.position = "none")
-
-# Q3: What is the relationship between mound volume, termite biomass, and CH4 flux? 
-# calculate estimated termite biomass 
-p_fluxes_f$t_biomass_g_cm3 <- p_fluxes_f$mass_termite_g / p_fluxes_f$material_volume_cm3
-p_fluxes_f$t_biomass_g_m3 <- p_fluxes_f$mass_termite_g / p_fluxes_f$material_volume_cm3 * 10e6
-
-# calculate average t_biomass_g_m3 by species
-t_biomass <- p_fluxes_f %>% 
-  group_by(species) %>% 
-  summarise(t_biomass_g_m3 = mean(t_biomass_g_m3))
-
-t_biomass$species_s <- c("A. laurensis", "C. acinaciformis", "N. magnus")
-t_biomass <- t_biomass[, -1]
-
-# Define min and max for each axis to form the cube boundaries
-xmin <- mean(all_fluxes_mound_avg$termite_biomass_g) + sd(all_fluxes_mound_avg$termite_biomass_g)
-xmax <- mean(all_fluxes_mound_avg$termite_biomass_g) -  sd(all_fluxes_mound_avg$termite_biomass_g)
-ymin <- mean(all_fluxes_mound_avg$volume_m3_final) + sd(all_fluxes_mound_avg$volume_m3_final)
-ymax <- mean(all_fluxes_mound_avg$volume_m3_final) - sd(all_fluxes_mound_avg$volume_m3_final)
-zmin <- mean(all_fluxes_mound_avg$mound_CH4flux) + sd(all_fluxes_mound_avg$mound_CH4flux)
-zmax <- mean(all_fluxes_mound_avg$mound_CH4flux) - sd(all_fluxes_mound_avg$mound_CH4flux)
-
-# 3d plot with reference cube
-plot_ly(data = all_fluxes_mound_avg, x = ~termite_biomass_g, y = ~volume_m3_final, z = ~mound_CH4flux,
-        type = "scatter3d", mode = "markers",
-        marker = list(size = 5, color = ~mean_mound_fluxCH4, colorscale = "Viridis", showscale = TRUE)) %>%
-  # Add lines for the edges of the cube
-  add_trace(type = "scatter3d", mode = "lines",
-            x = c(xmin, xmax, xmax, xmin, xmin, xmin, xmin, xmax, xmax, xmax, xmax, xmin),
-            y = c(ymin, ymin, ymax, ymax, ymin, ymin, ymax, ymax, ymax, ymin, ymin, ymin),
-            z = c(zmin, zmin, zmin, zmin, zmin, zmax, zmax, zmax, zmin, zmin, zmax, zmax),
-            line = list(color = 'black', width = 2)) %>%
-  layout(scene = list(
-    xaxis = list(title = "Termite Biomass (g)"),
-    yaxis = list(title = "Volume (m³)"),
-    zaxis = list(title = "Mound CH4 Flux")
-  ))
-
-# relationship between termite biomass and CH4 flux
-ggplot(all_fluxes_mound_avg, aes(x = termite_biomass_g, y = mound_CH4flux, color = species_s)) + 
-  geom_point()+ 
-  geom_smooth(method = 'lm')+
-  facet_wrap(~species_s, scales = "free")+ 
-  scale_color_brewer(palette = "Dark2")+
-  theme_classic()+
-  ylab("Total mound CH4 flux (umol/d/mound)") +
-  xlab("Termite biomass (g)")+
   theme(legend.position = "none")
 
 ggarrange(a, b, ncol = 1)
@@ -221,8 +145,8 @@ ggplot(all_fluxes_seasonal_avg, aes(x = campaign, y = mean_mound_fluxCH4, fill =
 # Q2: How does CH4 flux change by temperature?
 # LINEAR
 a <- ggplot(all_fluxes_seasonal_avg, aes(x = temp, y = mean_mound_fluxCH4, color = campaign))+
-  geom_point()+
-  geom_smooth(method = 'lm', se = TRUE)+
+  geom_point(size = 4)+
+  geom_smooth(method = 'lm', se = FALSE)+
   ylab("CH4 flux umol/d/m2")+
   xlab("Average Mound Surface Temperature (C)")+
   scale_color_brewer(palette = "Dark2")+
@@ -271,6 +195,37 @@ ggarrange(a, b, ncol = 1)
 
 Other potentially interesting things 
 ------------------------------------
+fluxes from termites + mound material + together 
+```{r}
+# Q3: What are the fluxes associated with termites in the mound vs. termites outside mound
+# select columns from p_fluxes_f
+NT_ch4_long <- p_fluxes_f %>% select(species, flux.CH4_A, flux.CH4_T, flux.CH4_M)
+NT_ch4_long <- gather(NT_ch4_long, key = "source", value = "flux", -species)
+NT_ch4_long$source <- factor(NT_ch4_long$source, levels = c("flux.CH4_A", "flux.CH4_T", "flux.CH4_M"))
+
+NT_co2_long <- p_fluxes_f %>% select(species, flux.CO2_A, flux.CO2_T, flux.CO2_M)
+NT_co2_long <- gather(NT_co2_long, key = "source", value = "flux", -species)
+NT_co2_long$source <- factor(NT_co2_long$source, levels = c("flux.CO2_A", "flux.CO2_T", "flux.CO2_M"))
+
+c <- ggplot(NT_ch4_long, aes(x = species, y = flux, fill = source))+
+  geom_boxplot(outlier.shape = NA)+
+  ylab("CH4 flux (umol/d/m2)")+
+  xlab("")+
+  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
+  scale_fill_brewer(palette = "RdYlGn", labels = c("T+M", "T", "M"))+
+  ggtitle("c)") +
+  theme_classic()
+
+d <- ggplot(NT_co2_long, aes(x = species, y = flux, fill = source))+
+  geom_boxplot(outlier.shape = NA)+
+  ylab("CO2 flux (mmol/d/m2)")+
+  xlab("")+
+  scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
+  scale_fill_brewer(palette = "RdYlGn", labels = c("T+M", "T", "M"))+
+  ggtitle("d)") +
+  theme_classic()
+```
+
 
 splines of different df 
 ```{r}
