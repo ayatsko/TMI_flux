@@ -5,10 +5,6 @@ date: "2024-03-15"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
 libraries
 ```{r}
 library(ggplot2)
@@ -62,16 +58,33 @@ Comparison of termite fluxes at the individual and mound level
 ```{r}
 # Q1: How does TEF vary across study species (fluxes from individuals)
 # test for differences between species 
+p_fluxes_f$species <- as.factor(p_fluxes_f$species)
 mod <- aov(TEF_ug_g_h ~ species, data = p_fluxes_f)
 summary(mod)
+
+# check assumptions 
+qqnorm(resid(mod))
+qqline(resid(mod))
+plot(fitted(mod), resid(mod))
 
 # determine which species are different
 emmeans(mod, pairwise ~ species)
 
 # Q2: How do mound fluxes vary across study species
+all_fluxes_mound$ID_mound <- as.factor(all_fluxes_mound$ID_mound)
+all_fluxes_mound$species_s <- as.factor(all_fluxes_mound$species_s)
+
 mod <- lmer(flux.CH4 ~ species_s + (1 | ID_mound), data = all_fluxes_mound)
 summary(mod)
+Anova(mod)
 emmeans(mod, pairwise ~ species_s)
+
+# check assumptions 
+qqnorm(resid(mod))
+qqline(resid(mod))
+plot(fitted(mod), resid(mod))
+
+# QUESTION: to include negative/zero fluxes in the model? response might need transformation... 
 ```
 
 How do mound traits contribute to CH4 flux? 
@@ -89,16 +102,31 @@ emmeans(mod, pairwise ~ species_s)
 # centre wall_thickness to account for species differences in mound wall thickness
 wt$wall_thickness_centered <- ave(wt$wall_thickness_mm, wt$species_s, FUN = scale)
 
-mod <-  lmer(flux.CH4 ~ wall_thickness_centered + (1 | species_s) + (1 | ID_mound), data = wt)
+# consider only positive fluxes in models 
+wt_pos <- wt[wt$flux.CH4 > 0, ]
+
+ggplot(wt_pos, aes(x = wall_thickness_centered, y = log(flux.CH4), color = species)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_minimal() +
+  labs(title = "Relationship Between Wall Thickness and CH4 Flux",
+       x = "Wall Thickness (mm)",
+       y = "CH4 Flux")
+
+mod <-  lmer(log(flux.CH4) ~ wall_thickness_centered*species_s + (1 | ID_mound), data = wt_pos)
 summary(mod)
 Anova(mod)
 
-# look at relationship just for coptotermes
-mod <-  lmer(flux.CH4 ~ wall_thickness_centered + (1 | ID_mound), data = wt[wt$species_s == "C. acinaciformis",])
-Anova(mod)
+# check assumptions 
+qqnorm(resid(mod))
+qqline(resid(mod))
+plot(fitted(mod), resid(mod))
+
+# posthoc emmeans 
+emms <- emmeans(mod, ~ wall_thickness_centered | species_s)
+summary(emms)
 
 # Q2: What is the relationship between mound size and CH4 flux? 
-
 # average mound size by species
 mod <- aov(volume_m3_final ~ species_s, data = all_fluxes_mound_avg)
 summary(mod)
@@ -106,39 +134,65 @@ emmeans(mod, pairwise ~ species_s)
 
 all_fluxes_mound_avg$volume_m3_final_centered <- ave(all_fluxes_mound_avg$volume_m3_final, all_fluxes_mound_avg$species_s, FUN = scale)
 
-mod <- lmer(mound_CH4flux ~ volume_m3_final_centered + (1 | species_s) + (1 | sample), data = all_fluxes_mound_avg)
+ggplot(all_fluxes_mound_avg, aes(x = volume_m3_final_centered, y = (mound_CH4flux), color = species_s)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_minimal() +
+  labs(title = "Relationship Between Mound Volume and CH4 Flux",
+       x = "Mound Volume (m3)",
+       y = "CH4 Flux")
+
+mod <- lmer(mound_CH4flux ~ volume_m3_final_centered*species_s + (1 | sample), data = all_fluxes_mound_avg)
 summary(mod)
 Anova(mod)
-ggpredict(mod, terms = c("volume_m3_final_centered")) %>% plot(add.data = TRUE)
 
-mod_ami <- lmer(mound_CH4flux ~ volume_m3_final + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s =="A. laurensis",])
-mod_cop <- lmer(mound_CH4flux ~ volume_m3_final + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s =="C. acinaciformis",])
-mod_nas <- lmer(mound_CH4flux ~ volume_m3_final + (1 | sample), data = all_fluxes_mound_avg[all_fluxes_mound_avg$species_s =="N. magnus",])
-summary(mod_nas)
+qqnorm(resid(mod))
+qqline(resid(mod))
+plot(fitted(mod), resid(mod))
+
+emms <- emmeans(mod, ~ volume_m3_final_centered | species_s)
+summary(emms)
 ```
 
 How do seasons and temperature effect CH4 flux?
 ```{r}
 # Q1: How does CH4 flux change by season?
-mod <- lmer(mean_mound_fluxCH4 ~ campaign + (1 | species_s) + (1 | sample), data = all_fluxes_seasonal_avg)
+mod <- lmer(mean_mound_fluxCH4 ~ campaign + (1 | species_s) + (1 | sample), data = all_fluxes_resample_reps_avg)
 summary(mod)
 emm <- emmeans(mod, ~ campaign)
 pairs(emm)
 
 # Q2: How does CH4 flux change by temperature?
 # LINEAR
-mod <- lmer(mean_mound_fluxCH4 ~ temp + campaign + (1 | sample) + (1 | species_s), data = all_fluxes_seasonal_avg)
+mod <- lmer(mean_mound_fluxCH4 ~ temp + campaign + (1 | sample) + (1 | species_s), data = all_fluxes_resample_reps_avg)
+summary(mod)
 Anova(mod)
 
 # POLYNOMIAL 
-mod_poly <- lmer(mean_mound_fluxCH4 ~ poly(temp, 2) + campaign + (1 | sample) + (1 | species_s), data = all_fluxes_seasonal_avg)
-Anova(mod_poly)
+mod_poly <- lmer(mean_mound_fluxCH4 ~ poly(temp, 2) + campaign + (1 | sample) + (1 | species_s), data = all_fluxes_resample_reps_avg)
+summary(mod_poly)
+Anova(mod_poly, type = "III")
+
+anova(mod, mod_poly)
+
 emmeans(mod_poly, pairwise ~ campaign)
-
-
-residuals <- resid(mod_poly)
-fitted_values <- fitted(mod_poly)
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 EXTRA 
 ```{r}

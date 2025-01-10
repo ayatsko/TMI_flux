@@ -145,7 +145,7 @@ ggplot(all_fluxes_seasonal_avg, aes(x = campaign, y = mean_mound_fluxCH4, fill =
 # Q2: How does CH4 flux change by temperature?
 # LINEAR
 a <- ggplot(all_fluxes_seasonal_avg, aes(x = temp, y = mean_mound_fluxCH4, color = campaign))+
-  geom_point(size = 4)+
+  geom_point(size = 2, alpha = 0.8)+
   geom_smooth(method = 'lm', se = FALSE)+
   ylab("CH4 flux umol/d/m2")+
   xlab("Average Mound Surface Temperature (C)")+
