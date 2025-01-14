@@ -213,7 +213,6 @@ c <- ggplot(NT_ch4_long, aes(x = species, y = flux, fill = source))+
   xlab("")+
   scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
   scale_fill_brewer(palette = "RdYlGn", labels = c("T+M", "T", "M"))+
-  ggtitle("c)") +
   theme_classic()
 
 d <- ggplot(NT_co2_long, aes(x = species, y = flux, fill = source))+
@@ -222,8 +221,9 @@ d <- ggplot(NT_co2_long, aes(x = species, y = flux, fill = source))+
   xlab("")+
   scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
   scale_fill_brewer(palette = "RdYlGn", labels = c("T+M", "T", "M"))+
-  ggtitle("d)") +
   theme_classic()
+
+ggarrange(c,d)
 ```
 
 

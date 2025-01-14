@@ -68,7 +68,7 @@ qqline(resid(mod))
 plot(fitted(mod), resid(mod))
 
 # determine which species are different
-emmeans(mod, pairwise ~ species)
+emmeans(mod, pairwise ~ species, adjust = "tukey")
 
 # Q2: How do mound fluxes vary across study species
 all_fluxes_mound$ID_mound <- as.factor(all_fluxes_mound$ID_mound)
@@ -109,8 +109,7 @@ ggplot(wt_pos, aes(x = wall_thickness_centered, y = log(flux.CH4), color = speci
   geom_point() +
   geom_smooth(method = "lm") +
   theme_minimal() +
-  labs(title = "Relationship Between Wall Thickness and CH4 Flux",
-       x = "Wall Thickness (mm)",
+  labs(x = "Wall Thickness (mean centred)",
        y = "CH4 Flux")
 
 mod <-  lmer(log(flux.CH4) ~ wall_thickness_centered*species_s + (1 | ID_mound), data = wt_pos)
@@ -138,8 +137,7 @@ ggplot(all_fluxes_mound_avg, aes(x = volume_m3_final_centered, y = (mound_CH4flu
   geom_point() +
   geom_smooth(method = "lm") +
   theme_minimal() +
-  labs(title = "Relationship Between Mound Volume and CH4 Flux",
-       x = "Mound Volume (m3)",
+  labs(x = "Mound Volume (mean centred)",
        y = "CH4 Flux")
 
 mod <- lmer(mound_CH4flux ~ volume_m3_final_centered*species_s + (1 | sample), data = all_fluxes_mound_avg)
@@ -156,17 +154,14 @@ summary(emms)
 
 How do seasons and temperature effect CH4 flux?
 ```{r}
-# Q1: How does CH4 flux change by season?
-mod <- lmer(mean_mound_fluxCH4 ~ campaign + (1 | species_s) + (1 | sample), data = all_fluxes_resample_reps_avg)
-summary(mod)
-emm <- emmeans(mod, ~ campaign)
-pairs(emm)
-
-# Q2: How does CH4 flux change by temperature?
+# How does CH4 flux change by season and temperature?
 # LINEAR
-mod <- lmer(mean_mound_fluxCH4 ~ temp + campaign + (1 | sample) + (1 | species_s), data = all_fluxes_resample_reps_avg)
+mod <- lmer(mean_mound_fluxCH4 ~ temp + campaign  + (1 | sample) + (1 | species_s), data = all_fluxes_resample_reps_avg)
 summary(mod)
 Anova(mod)
+
+emm <- emmeans(mod, ~ campaign)
+pairs(emm)
 
 # POLYNOMIAL 
 mod_poly <- lmer(mean_mound_fluxCH4 ~ poly(temp, 2) + campaign + (1 | sample) + (1 | species_s), data = all_fluxes_resample_reps_avg)

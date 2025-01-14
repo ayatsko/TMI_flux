@@ -23,9 +23,9 @@ fluxes <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/a
 targets <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/targets.csv")
 wt <- fluxes[!is.na(fluxes$wall_thickness_mm), ]
 
-ko <- read.delim("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/ko.table(ReadsPerSample).txt", header = TRUE, sep = "\t")
 pathway <- read.delim("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/pathway.table(ReadsPerSample).txt", header = TRUE, sep = "\t")
-cazymes <- read.delim("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/CAZy.single.table(ReadsPerSample).txt", header = TRUE, sep = "\t")
+# ko <- read.delim("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/ko.table(ReadsPerSample).txt", header = TRUE, sep = "\t")
+# cazymes <- read.delim("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/CAZy.single.table(ReadsPerSample).txt", header = TRUE, sep = "\t")
 ```
 
 data clean 
@@ -182,12 +182,15 @@ flux_relabund$resampled_relabund_scaled <- as.numeric(flux_relabund$resampled_re
 flux_relabund_pos <- flux_relabund[flux_relabund$flux.CH4 > 0, ]
 
 # does greater relative abundance of methane metabolism pathway correlate with lower methane flux?
-ggplot(flux_relabund_pos, aes(x = resampled_relabund_scaled, y = flux.CH4)) + 
+ggplot(flux_relabund_pos, aes(x = resampled_relabund_scaled, y = log(flux.CH4))) + 
   geom_point() + 
   geom_smooth(method = "lm") + 
-  theme_classic()
+  theme_classic() + 
+  xlab("Relative abundance of methane metabolism pathway (mean centred)") + 
+  ylab("CH4 Flux")
 
-mod <- lmer(log(flux.CH4) ~ resampled_relabund_scaled + (1|sample), data = flux_relabund_pos)
+flux_relabund_pos$species_s <- as.factor(flux_relabund_pos$species_s)
+mod <- lmer(log(flux.CH4) ~ resampled_relabund_scaled + species_s + (1|sample), data = flux_relabund_pos)
 summary(mod)
 Anova(mod)
 
@@ -199,6 +202,17 @@ plot(fitted(mod), resid(mod))
 random_effects <- ranef(mod)$sample[, 1]
 qqnorm(random_effects)
 qqline(random_effects)
+
+# species and relabund 
+mod <- aov(resampled_relabund ~ species_s, data = flux_relabund_pos)
+summary(mod)
+emmeans(mod, pairwise ~ species_s)
+
+ggplot(flux_relabund_pos, aes(x = species_s, y = resampled_relabund)) +
+  geom_boxplot() +
+  theme_classic() +
+  xlab("") + 
+  ylab("Relative abundance of methane metabolism pathway")
 ```
 
 Q1: are there differences in relative abundance of methane pathway between low/high flux mounds within species
