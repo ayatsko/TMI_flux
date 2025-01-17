@@ -148,7 +148,7 @@ qqnorm(resid(mod))
 qqline(resid(mod))
 plot(fitted(mod), resid(mod))
 
-emms <- emmeans(mod, ~ volume_m3_final_centered | species_s)
+emms <- emmeans(mod, ~ volume_m3_final_centegured | species_s)
 summary(emms)
 ```
 
@@ -156,9 +156,11 @@ How do seasons and temperature effect CH4 flux?
 ```{r}
 # How does CH4 flux change by season and temperature?
 # LINEAR
-mod <- lmer(mean_mound_fluxCH4 ~ temp + campaign  + (1 | sample) + (1 | species_s), data = all_fluxes_resample_reps_avg)
+mod <- lmer(mean_mound_fluxCH4 ~ temp  + campaign + (1 | sample) + (1 | species_s), data = all_fluxes_resample_reps_avg)
 summary(mod)
 Anova(mod)
+
+tab_model(mod)
 
 emm <- emmeans(mod, ~ campaign)
 pairs(emm)
@@ -239,3 +241,30 @@ for(mound in unique_mounds) {
 # Close the PDF device
 dev.off()
 ```
+
+```{r}
+# create new dataframe for all_fluxes_mound_avg$species_s == "A.laurensis"
+z <- wt[wt$species_s == "N. magnus", ]
+
+# average mound level flux by species 
+species_flux_size <- all_fluxes_mound_avg %>% 
+  group_by(species_s) %>% 
+  summarise(mean_mound_CH4flux = mean(mound_CH4flux), 
+            mean_volume_m3 = mean(volume_m3_final), 
+            n = n_distinct(sample))
+
+
+# Given values in mg CH4 mound⁻¹ hr⁻¹
+values_mg <- c(0.07, 2.7, 0.023, 0.08, 0.069, 10.3)
+
+
+# Molecular weight of CH4 (in g/mol)
+molecular_weight_CH4 <- 16.04
+
+# Convert from mg CH4 to µmol CH4 hr⁻¹ mound⁻¹
+values_umol <-  (values_mg * 1000 / molecular_weight_CH4) 
+values_umol
+
+
+```
+
