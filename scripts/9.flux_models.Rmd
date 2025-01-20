@@ -175,23 +175,41 @@ anova(mod, mod_poly)
 emmeans(mod_poly, pairwise ~ campaign)
 ```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+######
 EXTRA 
+######
+
+```{r}
+# relationship between relabund and wall thickness 
+ggplot(flux_relabund_pos, aes(x = wall_thickness_mm, y = resampled_relabund, color = species_s))+
+  geom_point()+ 
+  geom_smooth(method = "lm") + 
+  theme_classic()
+
+mod <- lm(resampled_relabund ~ wall_thickness_mm*species_s, data = flux_relabund_pos)
+summary(mod)
+# average mound relabund and size? 
+
+# Copto: relationhsip between wall thickness and volume 
+ggplot(all_fluxes_mound_avg, aes(x = wall_thickness_mm, y = volume_m3_final))+
+  geom_point()+
+  facet_wrap(~species_s, scales = "free")+
+  geom_smooth(method = "lm")+
+  theme_minimal()
+
+p_fluxes_f %>%
+  group_by(species) %>%
+  summarise(TEF = mean(TEF_ug_g_h)) -> TEF
+
+all_fluxes_mound_avg %>%
+  group_by(species_s) %>%
+  summarise(size = mean(volume_m3_final), 
+            min = min(volume_m3_final), 
+            max = max(volume_m3_final), 
+            flux = mean(mound_CH4flux)) -> size
+
+```
+
 ```{r}
 # CH4 flux from mounds if you just used TEF * biomass 
 p_fluxes_f$t_biomass_g_m3 <- p_fluxes_f$mass_termite_g / p_fluxes_f$material_volume_cm3 * 10e6

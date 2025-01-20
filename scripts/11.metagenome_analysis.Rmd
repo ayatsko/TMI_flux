@@ -23,9 +23,12 @@ fluxes <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/finalfluxes/a
 targets <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/targets.csv")
 wt <- fluxes[!is.na(fluxes$wall_thickness_mm), ]
 
-pathway <- read.delim("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/pathway.table(ReadsPerSample).txt", header = TRUE, sep = "\t")
+# pathway <- read.delim("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/pathway.table(ReadsPerSample).txt", header = TRUE, sep = "\t")
 # ko <- read.delim("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/ko.table(ReadsPerSample).txt", header = TRUE, sep = "\t")
 # cazymes <- read.delim("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/CAZy.single.table(ReadsPerSample).txt", header = TRUE, sep = "\t")
+
+resampled_data <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/ko_resampled_data.csv")
+resampled_data <- resampled_data[, -1]
 ```
 
 data clean 
@@ -62,7 +65,27 @@ ggplot(total_reads_path, aes(x = reorder(Sample, -Sum), y = Sum)) +
 # insufficient data: A108 (low 260/230), A109 (low 260/230), A107 (really low 260/230) (all MD64), A38 (low 260/230), A40 (really low 260/230) (all MD32), may have insufficient data - remove 
 ```
 
-identify standardisation value lower limit total reads (work with pathways table to start)
+distribution of total reads per sample - ko table
+```{r}
+# ko number
+integer_cols <- sapply(ko, is.integer)
+total_reads <- colSums(ko[, integer_cols])
+
+total_reads_ko <- data.frame(
+  Sample = names(total_reads),
+  Sum = total_reads,
+  row.names = NULL
+)
+
+# plot distribution of total reads per sample
+ggplot(total_reads_ko, aes(x = reorder(Sample, -Sum), y = Sum)) +
+  geom_bar(stat = "identity") +
+  labs(title = "KO table - reads per sample", x = "Total reads", y = "Frequency") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+```
+
+identify standardisation value lower limit total reads (pathways)
 ```{r}
 # remove columns with insufficient number of reads
 pathway_ok <- pathway[ , !names(pathway) %in% 
@@ -95,6 +118,252 @@ total_reads_resampled <- resampled_data %>%
   group_by(sequencing_id) %>%
   summarise(Sum = sum(resampled_reads))
 ```
+
+identify standardisation value lower limit total reads (ko)
+```{r}
+
+ko_ok <- ko[ , !names(ko) %in% c("A108","A109", "A107", "A38", "A40")]
+ko_ok <- ko_ok[, -1]
+
+ko_ok_long <- ko_ok %>% 
+  pivot_longer(cols = -Annotation, names_to = "sequencing_id", values_to = "reads")
+
+# resample for lower limit  
+total_reads_ko <- total_reads_ko[!(total_reads_ko$Sample %in% c("A108","A109", "A107", "A38", "A40")), ]
+lower_limit <- min(total_reads_ko$Sum)
+
+# NOTE run resampling on big computadora
+# set.seed(123)
+# resampled_data <- ko_ok_long %>%
+#   group_by(sequencing_id) %>%
+#   mutate(prob = reads / sum(reads)) %>%  # Calculate probabilities for sampling
+#   slice_sample(n = lower_limit, replace = TRUE, weight_by = prob) %>%  # Sample rows
+#   count(sequencing_id, Annotation, name = "resampled_reads") %>%  # Summarize the results
+#   ungroup()
+
+# sum of reads by sample (should equal lower_limit for all samples)
+total_reads_resampled <- resampled_data %>% 
+  group_by(sequencing_id) %>%
+  summarise(Sum = sum(resampled_reads))
+
+# write.csv(resampled_data, "\\\\am_dsm1821\\BAMspace\\6_staff_folders\\Abbey\\metagenomics\\metagenomescopy\\ko_resampled_data.csv")
+# resampled_data <- read.csv("/Users/abbeyyatsko/Desktop/repos/TMI_flux/data/metagenomes/ko_resampled_data.csv")
+resampled_data <- resampled_data[, -1]
+```
+
+compare relative abundance for ko (non-standardised v standardised)
+```{r}
+ko_ok_long <- left_join(ko_ok_long, total_reads_ko, by = c("sequencing_id" = "Sample"))
+ko_ok_long$relabund <- ko_ok_long$reads/ko_ok_long$Sum
+ko_ok_long %>% group_by(sequencing_id) %>% summarise(Sum_prop = sum(relabund)) -> out
+
+# join with resampled data 
+ko_ok_long <- left_join(ko_ok_long, resampled_data, by = c("sequencing_id", "Annotation"))
+ko_ok_long$resampled_sum <- lower_limit
+ko_ok_long$resampled_relabund <- ko_ok_long$resampled_reads/ko_ok_long$resampled_sum
+
+# bar plot summary of relative abundance
+a <- ggplot(ko_ok_long, aes(x = sequencing_id, y = relabund, fill = Annotation)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Pathway table - relative abundance per sample", x = "Sample", y = "Relative abundance") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
+
+b <- ggplot(ko_ok_long, aes(x = sequencing_id, y = resampled_relabund, fill = Annotation)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Pathway table - relative abundance per sample (resampled)", x = "Sample", y = "Relative abundance") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
+
+ggarrange(a, b, ncol = 2)
+
+pmoa <- ko_ok_long[grepl("pmoA", ko_ok_long$Annotation), ]
+
+c <- ggplot(pmoa, aes(x = sequencing_id, y = relabund, fill = sequencing_id)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Relative abundance of methane pathway per sample", x = "Sample", y = "Relative abundance") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
+
+d <- ggplot(pmoa, aes(x = sequencing_id, y = resampled_relabund, fill = sequencing_id)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Relative abundance of methane pathway per sample (resampled)", x = "Sample", y = "Relative abundance") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
+
+ggarrange(c, d, ncol = 2)
+
+# direct comparison 
+pmoa$relabund_diff <- pmoa$relabund - pmoa$resampled_relabund
+ggplot(pmoa, aes(x = sequencing_id, y = relabund_diff, fill = sequencing_id)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Difference in relative abundance from resampling", x = "Sample", y = "Relative abundance") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
+
+mean_relabund <- mean(pmoa$resampled_relabund, na.rm = TRUE)
+```
+
+visualise relative abundance of all ko numbers for context
+```{r}
+# average relative abundance by pathway 
+ko_ok_long %>% group_by(Annotation) %>% 
+  summarise(mean_relabund = mean(relabund, na.rm = TRUE), 
+            mean_resampled_relabund = mean(resampled_relabund, na.rm = TRUE)) -> each_pathway_relabund
+
+ggplot(each_pathway_relabund, aes(x = Annotation, y = mean_resampled_relabund, fill = Annotation)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Mean relative abundance per pathway", x = "Pathway", y = "Relative abundance") +
+  theme_classic() +
+  theme(axis.text.x = element_blank(),  # Remove x-axis labels
+        axis.ticks.x = element_blank(), # Optionally remove x-axis ticks
+        legend.position = "none") + 
+  geom_hline(yintercept = mean_relabund, linetype = "dashed") + # mean methane metabolism relative abundance
+  ylim(0, 0.001) # limits y axis to show comparison of pmoa
+
+ggplot(each_pathway_relabund, aes(x = reorder(Annotation, -mean_resampled_relabund), y = mean_resampled_relabund)) +
+  geom_bar(stat = "identity") +
+  labs(title = "KO table - reads per sample", x = "Total reads", y = "Frequency") +
+  theme_classic() +
+  theme(axis.text.x = element_blank(),  # Remove x-axis labels
+        axis.ticks.x = element_blank(), # Optionally remove x-axis ticks
+        legend.position = "none") 
+```
+
+merge metadata with methane metabolism pathway relative abundances, flux ~ relabund
+```{r}
+# join pmoa relabund with flux data
+flux_relabund <- left_join(pmoa, metadata, by = c("sequencing_id"))
+flux_relabund$species_s <- as.factor(flux_relabund$species_s)
+
+# remove samples with no methane flux data
+flux_relabund <- flux_relabund[!is.na(flux_relabund$flux.CH4), ]
+
+# standardise data by rescaling with mean = 0 and sd = 1 
+flux_relabund <- flux_relabund %>%
+  mutate(resampled_relabund_scaled = standardize(relabund))
+
+flux_relabund$resampled_relabund_scaled <- as.numeric(flux_relabund$resampled_relabund_scaled)
+
+# consider only positive values in the model 
+flux_relabund_pos <- flux_relabund[flux_relabund$flux.CH4 > 0, ]
+
+# does greater relative abundance of methane metabolism pathway correlate with lower methane flux?
+ggplot(flux_relabund_pos, aes(x = resampled_relabund_scaled, y = log(flux.CH4), color = species_s)) + 
+  geom_point() + 
+  geom_smooth(method = "lm") + 
+  theme_classic() + 
+  xlab("Relative abundance of pmoA (mean centred)") + 
+  ylab("CH4 Flux")
+
+mod <- lmer(log(flux.CH4) ~ resampled_relabund_scaled + species_s + (1|sample), data = flux_relabund_pos)
+summary(mod)
+Anova(mod)
+
+# check assumptions 
+qqnorm(resid(mod))
+qqline(resid(mod))
+plot(fitted(mod), resid(mod))
+
+random_effects <- ranef(mod)$sample[, 1]
+qqnorm(random_effects)
+qqline(random_effects)
+
+# species difference in relative abundance
+ggplot(flux_relabund_pos, aes(x = species_s, y = relabund)) +
+  geom_boxplot() +
+  theme_classic() +
+  xlab("") + 
+  ylab("Relative abundance of pmoA")
+
+mod <- aov(relabund ~ species_s, data = flux_relabund_pos)
+summary(mod)
+emmeans(mod, pairwise ~ species_s)
+```
+
+Q1: are there differences in relative abundance of methane pathway between low/high flux mounds within species
+```{r}
+data_q1 <- flux_relabund_pos %>%
+  filter(!is.na(rank))
+data_q1$rank <- as.factor(data_q1$rank)
+
+# variability of pathway expression and CH4 flux within each sample 
+ggplot(data_q1, aes(x = sample, y = resampled_relabund, colour = flux.CH4)) +
+  geom_point(size = 5, alpha = .5) + 
+  theme_classic() + 
+  facet_wrap(~ rank) + 
+  scale_color_gradientn(colors = rainbow(5))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
+
+# species variation in CH4 flux and pathway expression for low and high emitters and by species 
+a <- ggplot(data_q1, aes(x = species, y = flux.CH4, fill = rank)) +
+  geom_boxplot() +
+  theme_classic()
+  
+b <- ggplot(data_q1, aes(x = species, y = resampled_relabund, fill = rank)) +
+  geom_boxplot() +
+  theme_classic()
+
+ggarrange(a, b)
+
+# for each species, are there differences in relabund of methane pathway between high and low flux mounds? 
+mod <- lmer(log(relabund) ~ rank + species + (1 | sample), data = data_q1)
+summary(mod)
+Anova(mod)
+
+ggplot(data_q1, aes(x = rank, y = relabund, fill = rank)) +
+  geom_boxplot() +
+  theme_classic()
+
+# check assumptions 
+qqnorm(resid(mod))
+qqline(resid(mod))
+plot(fitted(mod), resid(mod))
+
+random_effects <- ranef(mod)$sample[, 1]
+qqnorm(random_effects)
+qqline(random_effects)
+```
+
+Q2: do low and high emitters have different pathway expression
+```{r}
+data_q2 <- flux_relabund_pos %>%
+  filter(!is.na(variable_emitters))
+
+# summarize counts per sample in a table 
+data_q2 %>% group_by(sample) %>% 
+  summarise(count = n()) 
+
+# for each sample, calculate max(relabund) - min(relabund)
+data_q2 %>% group_by(sample, species) %>% 
+  summarise(diff_relabund = max(resampled_relabund) - min(resampled_relabund), 
+            range = range) -> diff_relabund
+
+x <- unique(diff_relabund)
+
+# relationship between range of CH4 flux and range of relabund 
+ggplot(x, aes(x = range, y = diff_relabund)) + 
+  geom_point() + 
+  geom_smooth(method = "lm") + 
+  theme_classic() + 
+  xlab("Range of CH4 flux") +
+  ylab("Range of relabund")
+
+mod <- lm(log(diff_relabund) ~ range, data = x)
+summary(mod)
+# doesn't really matter? 
+```
+
+
+
+
+
+
+
+
+#################
+PATHWAYS ANALYSIS
+#################
 
 compare relative abundance for pathways (non-standardised v standardised)
 ```{r}
@@ -166,136 +435,6 @@ ggplot(each_pathway_relabund, aes(x = pathway, y = mean_resampled_relabund, fill
 # methane metabolism is 16th most abundant pathway present in the sample
 ```
 
-merge metadata with methane metabolism pathway relative abundances, flux ~ relabund
-```{r}
-flux_relabund <- left_join(methane_pathway, metadata, by = c("sequencing_id"))
-flux_relabund$species <- as.factor(flux_relabund$species)
-
-# remove samples with no methane flux data
-flux_relabund <- flux_relabund[!is.na(flux_relabund$flux.CH4), ]
-# standardise data by rescaling with mean = 0 and sd = 1 
-flux_relabund <- flux_relabund %>%
-  mutate(resampled_relabund_scaled = standardize(resampled_relabund))
-flux_relabund$resampled_relabund_scaled <- as.numeric(flux_relabund$resampled_relabund_scaled)
-
-# consider only positive values in the model 
-flux_relabund_pos <- flux_relabund[flux_relabund$flux.CH4 > 0, ]
-
-# does greater relative abundance of methane metabolism pathway correlate with lower methane flux?
-ggplot(flux_relabund_pos, aes(x = resampled_relabund_scaled, y = log(flux.CH4))) + 
-  geom_point() + 
-  geom_smooth(method = "lm") + 
-  theme_classic() + 
-  xlab("Relative abundance of methane metabolism pathway (mean centred)") + 
-  ylab("CH4 Flux")
-
-flux_relabund_pos$species_s <- as.factor(flux_relabund_pos$species_s)
-mod <- lmer(log(flux.CH4) ~ resampled_relabund_scaled + species_s + (1|sample), data = flux_relabund_pos)
-summary(mod)
-Anova(mod)
-
-# check assumptions 
-qqnorm(resid(mod))
-qqline(resid(mod))
-plot(fitted(mod), resid(mod))
-
-random_effects <- ranef(mod)$sample[, 1]
-qqnorm(random_effects)
-qqline(random_effects)
-
-# species and relabund 
-mod <- aov(resampled_relabund ~ species_s, data = flux_relabund_pos)
-summary(mod)
-emmeans(mod, pairwise ~ species_s)
-
-ggplot(flux_relabund_pos, aes(x = species_s, y = resampled_relabund)) +
-  geom_boxplot() +
-  theme_classic() +
-  xlab("") + 
-  ylab("Relative abundance of methane metabolism pathway")
-```
-
-Q1: are there differences in relative abundance of methane pathway between low/high flux mounds within species
-```{r}
-data_q1 <- flux_relabund_pos %>%
-  filter(!is.na(rank))
-data_q1$rank <- as.factor(data_q1$rank)
-
-# variability of pathway expression and CH4 flux within each sample 
-ggplot(data_q1, aes(x = sample, y = resampled_relabund, colour = flux.CH4)) +
-  geom_point(size = 5, alpha = .5) + 
-  theme_classic() + 
-  facet_wrap(~ rank) + 
-  scale_color_gradientn(colors = rainbow(5))+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
-
-# species variation in CH4 flux and pathway expression for low and high emitters and by species 
-a <- ggplot(data_q1, aes(x = species, y = flux.CH4, fill = rank)) +
-  geom_boxplot() +
-  theme_classic()
-  
-b <- ggplot(data_q1, aes(x = species, y = resampled_relabund, fill = rank)) +
-  geom_boxplot() +
-  theme_classic()
-
-ggarrange(a, b)
-
-# for each species, are there differences in relabund of methane pathway between high and low flux mounds? 
-mod <- lmer(log(relabund) ~ rank + species + (1 | sample), data = data_q1)
-summary(mod)
-Anova(mod)
-
-# check assumptions 
-qqnorm(resid(mod))
-qqline(resid(mod))
-plot(fitted(mod), resid(mod))
-
-random_effects <- ranef(mod)$sample[, 1]
-qqnorm(random_effects)
-qqline(random_effects)
-```
-
-Q2: do low and high emitters have different pathway expression
-```{r}
-data_q2 <- flux_relabund_pos %>%
-  filter(!is.na(variable_emitters))
-
-# summarize counts per sample in a table 
-data_q2 %>% group_by(sample) %>% 
-  summarise(count = n()) 
-
-# for each sample, calculate max(relabund) - min(relabund)
-data_q2 %>% group_by(sample, species) %>% 
-  summarise(diff_relabund = max(resampled_relabund) - min(resampled_relabund), 
-            range = range) -> diff_relabund
-
-x <- unique(diff_relabund)
-
-# relationship between range of CH4 flux and range of relabund 
-ggplot(x, aes(x = range, y = diff_relabund)) + 
-  geom_point() + 
-  geom_smooth(method = "lm") + 
-  theme_classic() + 
-  xlab("Range of CH4 flux") +
-  ylab("Range of relabund")
-
-mod <- lm(log(diff_relabund) ~ range, data = x)
-summary(mod)
-# doesn't really matter? 
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 models with additional predictors
 ```{r}
@@ -313,138 +452,6 @@ Anova(mod_with_wall, type = "III")
 
 ```
 
-what if variance partitioning makes sense?
-how does relabund, wall thickness, species, and temperature explain variance in CH4 flux?
-```{r}
 
 
-
-
-
-
-
-
-
-
-```
-
-
-
-
-
-
-
-
-````````````````
-````````````````
-EXTRA 
-````````````````
-````````````````
-
-
-ko table data clean
-```{r}
-# filter ko table for what is in the target list 
-ko_targets <- targets[targets$source == "ko", ]$target
-
-# filter ko_table by Annotation = ko_targets
-ko_table_targets <- ko[ko$Annotation %in% ko_targets, ]
-
-# remove first column 
-ko_table_targets <- ko_table_targets[, -1]
-
-# ko_table_targets to long format
-ko_table_targets_l <- ko_table_targets %>% 
-  pivot_longer(cols = -Annotation, names_to = "sequencing_id", values_to = "reads") %>% 
-  mutate(sample = gsub("X", "", sequencing_id))
-
-# shorten annotation
-ko_table_targets_l$Annotation_s <- str_extract(ko_table_targets_l$Annotation, "^[^;]*")
-
-metadata_ko <- metadata[, c("sequencing_id", "extract_ID", "flux.CH4", "top_emitters", "variable_emitters", "rank", "species")]
-data_ko <- merge(ko_table_targets_l, metadata_ko)
-```
-
-distributions of reads - ko and cazymes 
-```{r}
-# ko table
-integer_cols <- sapply(ko, is.integer)
-total_reads <- colSums(ko[, integer_cols])
-
-total_reads_ko <- data.frame(
-  Sample = names(total_reads),
-  Sum = total_reads,
-  row.names = NULL
-)
-
-# plot distribution of total reads per sample
-ko_reads <- ggplot(total_reads_ko, aes(x = reorder(Sample, -Sum), y = Sum)) +
-  geom_bar(stat = "identity") +
-  labs(title = "KO table - reads per sample", x = "Total reads", y = "Frequency") +
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
-
-# cazymes table
-integer_cols <- sapply(cazymes, is.integer)
-total_reads <- colSums(cazymes[, integer_cols])
-
-total_reads_caz <- data.frame(
-  Sample = names(total_reads),
-  Sum = total_reads,
-  row.names = NULL
-)
-
-# plot distribution of total reads per sample
-caz_reads <- ggplot(total_reads_caz, aes(x = reorder(Sample, -Sum), y = Sum)) +
-  geom_bar(stat = "identity") +
-  labs(title = "Cazymes table - reads per sample", x = "Total reads", y = "Frequency") +
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
-
-ggarrange(ko_reads, path_reads, caz_reads, ncol = 1)
-```
-
-visualizations 
-```{r}
-# reads ~ flux.CH4 (ko table)
-ggplot(data_ko, aes(x = reads, y = flux.CH4)) +
-  geom_point() +
-  geom_smooth(method = "lm") + 
-  facet_wrap(species~Annotation_s, scales = "free", ncol = 6) + 
-  labs(title = "reads ~ flux.CH4", x = "reads", y = "flux.CH4")+ 
-  theme_classic()
-
-pmoB_dat <- data_ko[data_ko$Annotation_s == "pmoB-amoB", ]
-mod <- lm(flux.CH4 ~ reads, data = pmoA_dat)
-Anova(mod)
-
-# reads ~ flux.CH4 (pathways)
-ggplot(data_pathway, aes(x = reads, y = flux.CH4)) +
-  geom_point() +
-  geom_smooth(method = "lm") + 
-  facet_wrap(~species) + 
-  labs(title = "reads ~ flux.CH4", x = "reads", y = "flux.CH4")+ 
-  theme_classic()
-
-mod <- lm(flux.CH4 ~ reads, data = data_pathway)
-Anova(mod)
-
-```
-
-q1 (high/low emitters)
-```{r}
-# omit rows = NA for column rank 
-data_pathway_q1 <- data_pathway[!is.na(data_pathway$rank), ]
-data_ko_q1 <- data_ko[!is.na(data_ko$rank), ]
-
-ggplot(data_pathway_q1, aes(x = species, y = reads, fill = rank)) +
-  geom_boxplot() +
-  theme_classic()
-
-ggplot(data_ko_q1, aes(x = species, y = reads, fill = rank)) +
-  geom_boxplot() +
-  facet_wrap(~Annotation_s, scales = "free") + 
-  theme_classic()
-
-```
 
