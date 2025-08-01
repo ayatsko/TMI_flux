@@ -37,7 +37,7 @@ Comparison of termite fluxes at the individual (TEF) and mound level
 # Q1: How does TEF vary across study species (fluxes from individuals)
 a <- ggplot(p_fluxes_f, aes(x = species, y = TEF_ug_g_h, fill = species))+
   geom_boxplot(outlier.shape = NA)+
-  geom_jitter()+
+  #geom_jitter()+
   ylab("Termite EF (ug CH4/hr/g termite)")+
   xlab("")+
   scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
@@ -49,7 +49,7 @@ a <- ggplot(p_fluxes_f, aes(x = species, y = TEF_ug_g_h, fill = species))+
 # Q2: How do mound fluxes vary across study species (mean fluxes from the mound)
 b <- ggplot(all_fluxes_mound_avg, aes(x = species_s, y = mean_mound_fluxCH4*0.6683, fill = species_s)) + #  multiuple µmol CH₄/day by 0.6683
   geom_boxplot()+ 
-  geom_jitter()+
+  #geom_jitter()+
   scale_x_discrete(labels = c("A. laurensis", "C. acinaciformis", "N. magnus"))+
   theme_classic()+
   ylab("Mean mound CH4 flux (ug CH4/hr/m2)")+
@@ -72,7 +72,7 @@ wt$sample <- as.factor(wt$sample)
 a <- ggplot(wt, aes(x = wall_thickness_mm, y = flux.CH4, color = species_s)) +
   geom_point()+ 
   geom_smooth(data = subset(wt, species_s == "C. acinaciformis"), method = "lm", se = FALSE) + 
-  facet_wrap(~species_s, scales = "free")+ 
+ # facet_wrap(~species_s, scales = "free")+ 
   theme_classic()+
   ylab("CH4 flux umol/d/m2")+
   xlab("Mound wall thickness (mm)")+
@@ -83,11 +83,9 @@ a <- ggplot(wt, aes(x = wall_thickness_mm, y = flux.CH4, color = species_s)) +
 # species and wall thickness 
 ggplot(wt, aes(x = species_s, y = wall_thickness_mm, fill = species_s))+ 
   geom_boxplot()+
-  geom_jitter()+
   theme_classic()+
   xlab("")+
   ylab("Mound wall thickness (mm)")+
-  ggtitle("Mound wall thickness by species")+
   scale_fill_brewer(palette = "Dark2")+
   theme(legend.position = "none")
 
@@ -111,7 +109,6 @@ ggplot(all_fluxes_mound_avg, aes(x = species_s, y = volume_m3_final, fill = spec
   theme_classic()+
   xlab("")+
   ylab("Mound volume (m3)")+
-  ggtitle("Mound volume by species")+
   scale_fill_brewer(palette = "Dark2")+
   theme(legend.position = "none")
 

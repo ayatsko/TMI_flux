@@ -16,6 +16,7 @@ library(vegan)
 library(partR2)
 library(patchwork)
 library(emmeans)
+library(lmerTest)
 ```
 
 data load 
@@ -108,7 +109,8 @@ wt_pos <- wt[wt$flux.CH4 > 0, ]
 ggplot(wt_pos, aes(x = wall_thickness_centered, y = log(flux.CH4), color = species)) +
   geom_point() +
   geom_smooth(method = "lm") +
-  theme_minimal() +
+  theme_classic() +
+  scale_color_brewer(palette = "Dark2")+
   labs(x = "Wall Thickness (mean centred)",
        y = "CH4 Flux")
 
@@ -124,6 +126,9 @@ plot(fitted(mod), resid(mod))
 # posthoc emmeans 
 emms <- emmeans(mod, ~ wall_thickness_centered | species_s)
 summary(emms)
+emtr <- emtrends(mod, ~ species_s, var = "wall_thickness_centered")
+summary(emtr)
+
 
 # Q2: What is the relationship between mound size and CH4 flux? 
 # average mound size by species
@@ -136,7 +141,8 @@ all_fluxes_mound_avg$volume_m3_final_centered <- ave(all_fluxes_mound_avg$volume
 ggplot(all_fluxes_mound_avg, aes(x = volume_m3_final_centered, y = (mound_CH4flux), color = species_s)) +
   geom_point() +
   geom_smooth(method = "lm") +
-  theme_minimal() +
+  theme_classic() +
+  scale_color_brewer(palette = "Dark2")+
   labs(x = "Mound Volume (mean centred)",
        y = "CH4 Flux")
 
@@ -156,7 +162,7 @@ How do seasons and temperature effect CH4 flux?
 ```{r}
 # How does CH4 flux change by season and temperature?
 # LINEAR
-mod <- lmer(mean_mound_fluxCH4 ~ temp  + campaign + (1 | sample) + (1 | species_s), data = all_fluxes_resample_reps_avg)
+mod <- lmer(mean_mound_fluxCH4 ~ temp + campaign + species_s + (1 | sample) + (1 | species_s), data = all_fluxes_resample_reps_avg)
 summary(mod)
 Anova(mod)
 
@@ -164,6 +170,11 @@ tab_model(mod)
 
 emm <- emmeans(mod, ~ campaign)
 pairs(emm)
+
+# mean mean_mound_fluxCH4 by campaign table
+mean_mound_fluxCH4_by_campaign <- all_fluxes_resample_reps_avg %>%
+  group_by(campaign) %>%
+  summarise(mean_mound_fluxCH4 = mean(mean_mound_fluxCH4, na.rm = TRUE))
 
 # POLYNOMIAL 
 mod_poly <- lmer(mean_mound_fluxCH4 ~ poly(temp, 2) + campaign + (1 | sample) + (1 | species_s), data = all_fluxes_resample_reps_avg)
